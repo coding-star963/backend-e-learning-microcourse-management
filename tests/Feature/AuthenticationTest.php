@@ -16,7 +16,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'Admin',
             'email' => 'admin@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
@@ -40,7 +40,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'Teacher',
             'email' => 'teacher@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
@@ -64,7 +64,7 @@ class AuthenticationTest extends TestCase
         User::create([
             'name' => 'User',
             'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
@@ -90,7 +90,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'User',
             'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
@@ -110,7 +110,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'User',
             'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
@@ -134,7 +134,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'User',
             'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
@@ -163,7 +163,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'User',
             'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
@@ -189,7 +189,7 @@ class AuthenticationTest extends TestCase
         $user = User::create([
             'name' => 'User',
             'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
