@@ -19,6 +19,7 @@ class User extends Authenticatable
 
     const ROLE_ADMINISTRATOR = 'administrator';
     const ROLE_TEACHER = 'teacher';
+    const ROLE_STUDENT = 'student';
 
     /**
      * Get the attributes that should be cast.
@@ -47,6 +48,30 @@ class User extends Authenticatable
     public function isTeacher(): bool
     {
         return $this->role === self::ROLE_TEACHER;
+    }
+
+    /**
+     * Check if user is a student.
+     */
+    public function isStudent(): bool
+    {
+        return $this->role === self::ROLE_STUDENT;
+    }
+
+    /**
+     * Check if user account is active.
+     */
+    public function isActive(): bool
+    {
+        return $this->is_active === true;
+    }
+
+    /**
+     * Check if user account is inactive.
+     */
+    public function isInactive(): bool
+    {
+        return $this->is_active === false;
     }
 
     /**
