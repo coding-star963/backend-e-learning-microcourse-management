@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Lesson;
+use App\Models\LessonProgress;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -480,6 +481,38 @@ class DatabaseSeeder extends Seeder
                 'completed_at' => $completedAt,
                 'last_accessed_at' => $eData['status'] === 'active' ? now()->subDays(rand(0, 5)) : null,
             ]);
+        }
+
+        // Create lesson progress data
+        $enrollments = Enrollment::with(['course.lessons'])->get();
+        foreach ($enrollments as $enrollment) {
+            $lessons = $enrollment->course->lessons;
+            if ($lessons->isEmpty()) continue;
+
+            $progressPercent = $enrollment->progress / 100;
+            $lessonsToComplete = (int) ceil($lessons->count() * $progressPercent);
+
+            $lessonsToComplete = min($lessonsToComplete, $lessons->count());
+
+            $lessonsToComplete = max(0, $lessonsToComplete);
+
+            $lessonsToComplete = min($lessonsToComplete, $lessons->count());
+
+            $lessons->take($lessonsToComplete)->each(function ($lesson) use ($enrollment) {
+                $completedAt = $enrollment->enrolled_at->copy()->addDays(rand(1, 14));
+                if ($completedAt->isAfter(now())) {
+                    $completedAt = now()->subDays(rand(0, 3));
+                }
+
+                LessonProgress::create([
+                    'user_id' => $enrollment->user_id,
+                    'lesson_id' => $lesson->id,
+                    'enrollment_id' => $enrollment->id,
+                    'completed' => true,
+                    'completed_at' => $completedAt,
+                    'watch_duration_seconds' => $lesson->duration_seconds ?: rand(60, 600),
+                ]);
+            });
         }
     }
 }

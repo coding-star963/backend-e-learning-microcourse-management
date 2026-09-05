@@ -5,6 +5,7 @@ use App\Http\Controllers\Category\CategoryController;
 use App\Http\Controllers\Course\CourseController;
 use App\Http\Controllers\Enrollment\EnrollmentController;
 use App\Http\Controllers\Lesson\LessonController;
+use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\User\UserController;
 use Illuminate\Support\Facades\Route;
@@ -88,4 +89,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/course/{course}/stats', [EnrollmentController::class, 'courseStats']);
         Route::get('/student/{user}', [EnrollmentController::class, 'studentEnrollments']);
     });
+
+    // Progress routes (administrator and teacher)
+    Route::middleware('role:administrator,teacher')->prefix('progress')->group(function () {
+        Route::get('/student/{user}', [ProgressController::class, 'studentProgress']);
+        Route::get('/course/{course}', [ProgressController::class, 'courseProgress']);
+        Route::get('/enrollment/{enrollment}', [ProgressController::class, 'enrollmentProgress']);
+        Route::get('/history/{user}', [ProgressController::class, 'learningHistory']);
+        Route::get('/course/{course}/summary', [ProgressController::class, 'courseProgressSummary']);
+    });
+
+    // Lesson progress (authenticated user)
+    Route::put('/lessons/{lesson}/progress', [ProgressController::class, 'toggleLessonProgress']);
 });

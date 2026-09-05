@@ -92,6 +92,11 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function lessonProgress()
+    {
+        return $this->hasMany(LessonProgress::class);
+    }
+
     /**
      * Get the profile photo URL.
      */

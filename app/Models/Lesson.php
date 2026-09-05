@@ -54,6 +54,11 @@ class Lesson extends Model
         return $this->hasMany(LessonResource::class)->orderBy('order');
     }
 
+    public function progress()
+    {
+        return $this->hasMany(LessonProgress::class);
+    }
+
     public function isPublished(): bool
     {
         return $this->status === self::STATUS_PUBLISHED;
