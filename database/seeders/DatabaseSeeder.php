@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Announcement;
 use App\Models\Category;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -513,6 +514,72 @@ class DatabaseSeeder extends Seeder
                     'watch_duration_seconds' => $lesson->duration_seconds ?: rand(60, 600),
                 ]);
             });
+        }
+
+        // Create announcements
+        $teachers = User::where('role', 'teacher')->get();
+        $publishedCourses = Course::where('status', 'published')->get();
+
+        $announcementData = [
+            [
+                'user_id' => $teachers[0]->id,
+                'course_id' => null,
+                'title' => 'Welcome to the Learning Platform',
+                'content' => 'We are excited to announce the launch of our new e-learning platform. Browse our courses and start learning today!',
+                'type' => 'general',
+                'is_published' => true,
+                'days_ago' => 10,
+            ],
+            [
+                'user_id' => $teachers[0]->id,
+                'course_id' => $publishedCourses[0]->id ?? null,
+                'title' => 'New Lesson Added: Advanced Topics',
+                'content' => 'A new lesson has been added to the course. Check it out to expand your knowledge.',
+                'type' => 'course_update',
+                'is_published' => true,
+                'days_ago' => 5,
+            ],
+            [
+                'user_id' => $teachers[1]->id ?? $teachers[0]->id,
+                'course_id' => null,
+                'title' => 'Scheduled Maintenance Notice',
+                'content' => 'The platform will undergo scheduled maintenance this weekend. Please plan your learning sessions accordingly.',
+                'type' => 'important',
+                'is_published' => true,
+                'days_ago' => 3,
+            ],
+            [
+                'user_id' => $teachers[0]->id,
+                'course_id' => $publishedCourses[1]->id ?? null,
+                'title' => 'Course Update: New Resources Available',
+                'content' => 'Additional learning resources have been uploaded to the course. Review them at your convenience.',
+                'type' => 'course_update',
+                'is_published' => false,
+                'days_ago' => 1,
+            ],
+            [
+                'user_id' => $teachers[2]->id ?? $teachers[0]->id,
+                'course_id' => null,
+                'title' => 'Upcoming Webinar Series',
+                'content' => 'Stay tuned for our upcoming webinar series on industry best practices. Registration details coming soon.',
+                'type' => 'general',
+                'is_published' => true,
+                'days_ago' => 7,
+            ],
+        ];
+
+        foreach ($announcementData as $data) {
+            $daysAgo = $data['days_ago'];
+            unset($data['days_ago']);
+
+            $createdAt = now()->subDays($daysAgo);
+            $publishedAt = $data['is_published'] ? $createdAt->copy()->addHours(rand(1, 5)) : null;
+
+            Announcement::create(array_merge($data, [
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+                'published_at' => $publishedAt,
+            ]));
         }
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Announcement\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Category\CategoryController;
 use App\Http\Controllers\Course\CourseController;
@@ -101,4 +102,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Lesson progress (authenticated user)
     Route::put('/lessons/{lesson}/progress', [ProgressController::class, 'toggleLessonProgress']);
+
+    // Announcement routes (administrator and teacher)
+    Route::middleware('role:administrator,teacher')->prefix('announcements')->group(function () {
+        Route::get('/', [AnnouncementController::class, 'index']);
+        Route::post('/', [AnnouncementController::class, 'store']);
+        Route::get('/history', [AnnouncementController::class, 'notificationHistory']);
+        Route::get('/{announcement}', [AnnouncementController::class, 'show']);
+        Route::put('/{announcement}', [AnnouncementController::class, 'update']);
+        Route::delete('/{announcement}', [AnnouncementController::class, 'destroy']);
+        Route::post('/{announcement}/publish', [AnnouncementController::class, 'publish']);
+        Route::post('/{announcement}/unpublish', [AnnouncementController::class, 'unpublish']);
+    });
 });
