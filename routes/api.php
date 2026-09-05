@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Category\CategoryController;
 use App\Http\Controllers\Course\CourseController;
+use App\Http\Controllers\Lesson\LessonController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\User\UserController;
 use Illuminate\Support\Facades\Route;
@@ -54,5 +55,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{course}/unpublish', [CourseController::class, 'unpublish']);
         Route::post('/{course}/archive', [CourseController::class, 'archive']);
         Route::put('/{course}/status', [CourseController::class, 'updateStatus']);
+    });
+
+    // Lesson routes (administrator and teacher)
+    Route::middleware('role:administrator,teacher')->prefix('courses/{course}/lessons')->group(function () {
+        Route::get('/', [LessonController::class, 'index']);
+        Route::post('/', [LessonController::class, 'store']);
+        Route::get('/{lesson}', [LessonController::class, 'show']);
+        Route::put('/{lesson}', [LessonController::class, 'update']);
+        Route::delete('/{lesson}', [LessonController::class, 'destroy']);
+        Route::post('/{lesson}/publish', [LessonController::class, 'publish']);
+        Route::post('/{lesson}/unpublish', [LessonController::class, 'unpublish']);
+        Route::post('/{lesson}/archive', [LessonController::class, 'archive']);
+        Route::put('/{lesson}/status', [LessonController::class, 'updateStatus']);
+        Route::put('/{lesson}/availability', [LessonController::class, 'updateAvailability']);
+        Route::post('/{lesson}/resources', [LessonController::class, 'addResource']);
+        Route::delete('/{lesson}/resources/{resource}', [LessonController::class, 'deleteResource']);
+        Route::put('/{lesson}/resources/reorder', [LessonController::class, 'reorderResources']);
+        Route::put('/reorder', [LessonController::class, 'reorder']);
     });
 });
