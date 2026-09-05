@@ -61,6 +61,28 @@ class Course extends Model
         return $this->hasMany(Lesson::class)->orderBy('order');
     }
 
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    public function enrolledUsers()
+    {
+        return $this->belongsToMany(User::class, 'enrollments')
+            ->withPivot('status', 'progress', 'enrolled_at', 'completed_at')
+            ->withTimestamps();
+    }
+
+    public function enrollmentsCount(): int
+    {
+        return $this->enrollments()->count();
+    }
+
+    public function activeEnrollmentsCount(): int
+    {
+        return $this->enrollments()->where('status', 'active')->count();
+    }
+
     public function isPublished(): bool
     {
         return $this->status === self::STATUS_PUBLISHED && $this->is_published;

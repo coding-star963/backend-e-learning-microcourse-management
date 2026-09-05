@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Category\CategoryController;
 use App\Http\Controllers\Course\CourseController;
+use App\Http\Controllers\Enrollment\EnrollmentController;
 use App\Http\Controllers\Lesson\LessonController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\User\UserController;
@@ -73,5 +74,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{lesson}/resources/{resource}', [LessonController::class, 'deleteResource']);
         Route::put('/{lesson}/resources/reorder', [LessonController::class, 'reorderResources']);
         Route::put('/reorder', [LessonController::class, 'reorder']);
+    });
+
+    // Enrollment routes (administrator and teacher)
+    Route::middleware('role:administrator,teacher')->prefix('enrollments')->group(function () {
+        Route::get('/', [EnrollmentController::class, 'index']);
+        Route::post('/', [EnrollmentController::class, 'store']);
+        Route::get('/stats', [EnrollmentController::class, 'stats']);
+        Route::get('/{enrollment}', [EnrollmentController::class, 'show']);
+        Route::put('/{enrollment}', [EnrollmentController::class, 'update']);
+        Route::delete('/{enrollment}', [EnrollmentController::class, 'destroy']);
+        Route::get('/course/{course}', [EnrollmentController::class, 'courseEnrollments']);
+        Route::get('/course/{course}/stats', [EnrollmentController::class, 'courseStats']);
+        Route::get('/student/{user}', [EnrollmentController::class, 'studentEnrollments']);
     });
 });
