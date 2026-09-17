@@ -13,9 +13,18 @@ class CategoryController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $categories = Category::withCount('courses')
-            ->orderBy('name')
-            ->paginate($request->get('per_page', 15));
+        $query = Category::withCount('courses');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = min((int) ($request->get('per_page', 10)), 100);
+        $categories = $query->orderBy('name')->paginate($perPage > 0 ? $perPage : 10);
 
         return CategoryResource::collection($categories);
     }

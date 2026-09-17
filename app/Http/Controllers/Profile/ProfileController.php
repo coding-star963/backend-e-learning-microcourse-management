@@ -91,4 +91,25 @@ class ProfileController extends Controller
             'message' => 'Profile photo updated successfully.',
         ]);
     }
+
+    /**
+     * Remove the authenticated user's profile photo.
+     */
+    public function deletePhoto(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->profile_photo) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
+
+        $user->update([
+            'profile_photo' => null,
+        ]);
+
+        return response()->json([
+            'user' => new UserResource($user->fresh()),
+            'message' => 'Profile photo removed successfully.',
+        ]);
+    }
 }

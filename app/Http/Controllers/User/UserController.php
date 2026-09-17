@@ -25,7 +25,16 @@ class UserController extends Controller
             $query->where('role', $request->role);
         }
 
-        $users = $query->orderBy('created_at', 'desc')->paginate(15);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = min((int) ($request->per_page ?? 15), 100);
+        $users = $query->orderBy('created_at', 'desc')->paginate($perPage > 0 ? $perPage : 15);
 
         return UserResource::collection($users);
     }

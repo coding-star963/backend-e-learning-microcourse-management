@@ -54,12 +54,12 @@ class ProgressController extends Controller
         $averageProgress = $totalCourses > 0
             ? round($coursesProgress->avg('progress'), 1)
             : 0;
-
         return [
             'student' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'profile_photo' => $user->profile_photo_url,
             ],
             'summary' => [
                 'total_courses' => $totalCourses,
@@ -94,6 +94,7 @@ class ProgressController extends Controller
                     'id' => $enrollment->user->id,
                     'name' => $enrollment->user->name,
                     'email' => $enrollment->user->email,
+                    'profile_photo' => $enrollment->user->profile_photo_url,
                 ],
                 'status' => $enrollment->status,
                 'total_lessons' => $totalLessons,
@@ -172,6 +173,7 @@ class ProgressController extends Controller
                 'id' => $enrollment->user->id,
                 'name' => $enrollment->user->name,
                 'email' => $enrollment->user->email,
+                'profile_photo' => $enrollment->user->profile_photo_url,
             ],
             'course' => [
                 'id' => $course->id,

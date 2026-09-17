@@ -41,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/', [ProfileController::class, 'update']);
         Route::put('/password', [ProfileController::class, 'updatePassword']);
         Route::post('/photo', [ProfileController::class, 'updatePhoto']);
+        Route::delete('/photo', [ProfileController::class, 'deletePhoto']);
     });
 
     // Category routes (administrator and teacher)

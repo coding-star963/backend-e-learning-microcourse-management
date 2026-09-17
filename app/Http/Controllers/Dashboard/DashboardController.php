@@ -60,6 +60,7 @@ class DashboardController extends Controller
             ->map(fn ($enrollment) => [
                 'id' => $enrollment->id,
                 'student' => $enrollment->user->name,
+                'profile_photo' => $enrollment->user->profile_photo_url,
                 'course' => $enrollment->course->title,
                 'status' => $enrollment->status,
                 'progress' => $enrollment->progress,
@@ -142,6 +143,7 @@ class DashboardController extends Controller
             ->map(fn ($enrollment) => [
                 'id' => $enrollment->id,
                 'student' => $enrollment->user->name,
+                'profile_photo' => $enrollment->user->profile_photo_url,
                 'course' => $enrollment->course->title,
                 'status' => $enrollment->status,
                 'progress' => $enrollment->progress,
