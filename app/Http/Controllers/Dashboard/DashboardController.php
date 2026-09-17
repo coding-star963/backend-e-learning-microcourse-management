@@ -107,6 +107,7 @@ class DashboardController extends Controller
         $totalCourses = Course::where('teacher_id', $teacher->id)->count();
         $publishedCourses = Course::where('teacher_id', $teacher->id)->where('status', 'published')->count();
         $draftCourses = Course::where('teacher_id', $teacher->id)->where('status', 'draft')->count();
+        $archivedCourses = Course::where('teacher_id', $teacher->id)->where('status', 'archived')->count();
 
         $courseIds = Course::where('teacher_id', $teacher->id)->pluck('id');
 
@@ -167,6 +168,7 @@ class DashboardController extends Controller
                 'total_courses' => $totalCourses,
                 'published_courses' => $publishedCourses,
                 'draft_courses' => $draftCourses,
+                'archived_courses' => $archivedCourses,
                 'total_enrollments' => $totalEnrollments,
                 'active_enrollments' => $activeEnrollments,
                 'completed_enrollments' => $completedEnrollments,

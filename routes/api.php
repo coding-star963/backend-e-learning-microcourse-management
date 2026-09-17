@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 
 // Protected routes
@@ -68,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:administrator,teacher')->prefix('courses/{course}/lessons')->group(function () {
         Route::get('/', [LessonController::class, 'index']);
         Route::post('/', [LessonController::class, 'store']);
+        Route::put('/reorder', [LessonController::class, 'reorder']);
         Route::get('/{lesson}', [LessonController::class, 'show']);
         Route::put('/{lesson}', [LessonController::class, 'update']);
         Route::delete('/{lesson}', [LessonController::class, 'destroy']);
@@ -79,7 +82,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{lesson}/resources', [LessonController::class, 'addResource']);
         Route::delete('/{lesson}/resources/{resource}', [LessonController::class, 'deleteResource']);
         Route::put('/{lesson}/resources/reorder', [LessonController::class, 'reorderResources']);
-        Route::put('/reorder', [LessonController::class, 'reorder']);
     });
 
     // Enrollment routes (administrator and teacher)

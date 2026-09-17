@@ -204,4 +204,105 @@ class AuthenticationTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    public function test_deactivated_user_cannot_login(): void
+    {
+        User::create([
+            'name' => 'Deactivated User',
+            'email' => 'inactive@example.com',
+            'password' => 'password',
+            'role' => 'teacher',
+            'is_active' => false,
+            'email_verified_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'inactive@example.com',
+            'password' => 'password',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_user_can_request_password_reset_token(): void
+    {
+        User::create([
+            'name' => 'Reset User',
+            'email' => 'reset@example.com',
+            'password' => 'password',
+            'role' => 'teacher',
+            'email_verified_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/forgot-password', [
+            'email' => 'reset@example.com',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['message', 'token']);
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => 'reset@example.com',
+        ]);
+    }
+
+    public function test_user_can_reset_password_with_valid_token(): void
+    {
+        $user = User::create([
+            'name' => 'Reset User',
+            'email' => 'reset2@example.com',
+            'password' => 'old-password',
+            'role' => 'teacher',
+            'email_verified_at' => now(),
+        ]);
+
+        $forgotRes = $this->postJson('/api/forgot-password', [
+            'email' => 'reset2@example.com',
+        ]);
+
+        $token = $forgotRes->json('token');
+
+        $resetRes = $this->postJson('/api/reset-password', [
+            'email' => 'reset2@example.com',
+            'token' => $token,
+            'password' => 'new-secure-password',
+            'password_confirmation' => 'new-secure-password',
+        ]);
+
+        $resetRes->assertStatus(200)
+            ->assertJson([
+                'message' => 'Your password has been reset successfully.',
+            ]);
+
+        $this->assertTrue(Hash::check('new-secure-password', $user->fresh()->password));
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => 'reset2@example.com',
+        ]);
+    }
+
+    public function test_user_cannot_reset_password_with_invalid_token(): void
+    {
+        User::create([
+            'name' => 'Reset User',
+            'email' => 'reset3@example.com',
+            'password' => 'old-password',
+            'role' => 'teacher',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->postJson('/api/forgot-password', [
+            'email' => 'reset3@example.com',
+        ]);
+
+        $resetRes = $this->postJson('/api/reset-password', [
+            'email' => 'reset3@example.com',
+            'token' => 'invalid-token-value',
+            'password' => 'new-secure-password',
+            'password_confirmation' => 'new-secure-password',
+        ]);
+
+        $resetRes->assertStatus(422)
+            ->assertJsonValidationErrors(['token']);
+    }
 }
