@@ -9,6 +9,7 @@ use App\Http\Controllers\Enrollment\EnrollmentController;
 use App\Http\Controllers\Lesson\LessonController;
 use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Controllers\Teacher\TeacherController;
 use App\Http\Controllers\User\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,6 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{user}', [UserController::class, 'update']);
         Route::post('/{user}/toggle-status', [UserController::class, 'toggleStatus']);
     });
+
+    // Teacher management (administrator only)
+    Route::middleware('role:administrator')->get('/teachers', [TeacherController::class, 'index']);
 
     // Profile routes
     Route::prefix('profile')->group(function () {
@@ -95,6 +99,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('enrollments')->group(function () {
         Route::get('/', [EnrollmentController::class, 'index']);
         Route::post('/', [EnrollmentController::class, 'store']);
+        Route::get('/stats', [EnrollmentController::class, 'stats']);
+        Route::get('/students', [EnrollmentController::class, 'students']);
         Route::get('/{enrollment}', [EnrollmentController::class, 'show']);
         Route::get('/course/{course}', [EnrollmentController::class, 'courseEnrollments']);
         Route::get('/student/{user}', [EnrollmentController::class, 'studentEnrollments']);

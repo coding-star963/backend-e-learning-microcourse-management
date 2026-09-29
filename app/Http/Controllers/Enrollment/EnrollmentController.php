@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Enrollment;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
+use App\Http\Resources\UserResource;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class EnrollmentController extends Controller
 {
@@ -48,33 +51,75 @@ class EnrollmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        // Either enroll an existing student (user_id) or register a new student and enroll them.
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
             'course_id' => 'required|exists:courses,id',
+            'user_id' => ['required_without:name', 'nullable', Rule::exists('users', 'id')->where('role', User::ROLE_STUDENT)],
+            'name' => 'required_without:user_id|nullable|string|max:255',
+            'email' => 'required_without:user_id|nullable|email|max:255|unique:users,email',
+            'password' => 'required_without:user_id|nullable|string|min:8',
+        ], [
+            'user_id.exists' => 'The selected account is not a student.',
         ]);
 
-        $exists = Enrollment::where('user_id', $validated['user_id'])
-            ->where('course_id', $validated['course_id'])
-            ->exists();
+        if (! empty($validated['user_id'])) {
+            $exists = Enrollment::where('user_id', $validated['user_id'])
+                ->where('course_id', $validated['course_id'])
+                ->exists();
 
-        if ($exists) {
-            return response()->json([
-                'message' => 'This student is already enrolled in this course.',
-            ], 422);
+            if ($exists) {
+                return response()->json([
+                    'message' => 'This student is already enrolled in this course.',
+                ], 422);
+            }
         }
 
-        $enrollment = Enrollment::create([
-            'user_id' => $validated['user_id'],
-            'course_id' => $validated['course_id'],
-            'status' => 'active',
-            'progress' => 0,
-            'enrolled_at' => now(),
-        ]);
+        $enrollment = DB::transaction(function () use ($validated) {
+            $userId = $validated['user_id'] ?? null;
+
+            if (! $userId) {
+                $userId = User::create([
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'password' => $validated['password'],
+                    'role' => User::ROLE_STUDENT,
+                    'is_active' => true,
+                ])->id;
+            }
+
+            return Enrollment::create([
+                'user_id' => $userId,
+                'course_id' => $validated['course_id'],
+                'status' => 'active',
+                'progress' => 0,
+                'enrolled_at' => now(),
+            ]);
+        });
 
         return response()->json([
             'enrollment' => new EnrollmentResource($enrollment->load(['user', 'course.teacher', 'course.category'])),
             'message' => 'Student enrolled successfully.',
         ], 201);
+    }
+
+    /**
+     * Active student accounts that can be enrolled, with their enrollment counts.
+     */
+    public function students(Request $request): AnonymousResourceCollection
+    {
+        $query = User::where('role', User::ROLE_STUDENT)
+            ->where('is_active', true)
+            ->withCount('enrollments');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        return UserResource::collection($query->orderBy('name')->get());
     }
 
     public function show(Enrollment $enrollment): EnrollmentResource

@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CourseResource;
 use App\Models\Category;
 use App\Models\Course;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class CourseController extends Controller
 {
@@ -46,6 +48,8 @@ class CourseController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'difficulty_level' => 'required|in:beginner,intermediate,advanced',
             'duration' => 'nullable|string|max:50',
+            'teacher_id' => ['nullable', Rule::exists('users', 'id')->where('role', User::ROLE_TEACHER)],
+            'section' => 'nullable|string|max:100',
             'thumbnail' => 'nullable|image|max:2048',
             'status' => 'sometimes|in:draft,published,archived',
         ]);
@@ -54,7 +58,10 @@ class CourseController extends Controller
             $validated['thumbnail'] = $request->file('thumbnail')->store('course-thumbnails', 'public');
         }
 
-        $validated['teacher_id'] = $request->user()->id;
+        // Administrators assign a teacher; teachers always own the courses they create.
+        if (! $request->user()->isAdministrator() || empty($validated['teacher_id'])) {
+            $validated['teacher_id'] = $request->user()->id;
+        }
         $validated['is_published'] = ($validated['status'] ?? 'draft') === 'published';
 
         $course = Course::create($validated);
@@ -80,9 +87,15 @@ class CourseController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'difficulty_level' => 'sometimes|in:beginner,intermediate,advanced',
             'duration' => 'nullable|string|max:50',
+            'teacher_id' => ['nullable', Rule::exists('users', 'id')->where('role', User::ROLE_TEACHER)],
+            'section' => 'nullable|string|max:100',
             'thumbnail' => 'nullable|image|max:2048',
             'status' => 'sometimes|in:draft,published,archived',
         ]);
+
+        if (! $request->user()->isAdministrator() || empty($validated['teacher_id'])) {
+            unset($validated['teacher_id']);
+        }
 
         if ($request->hasFile('thumbnail')) {
             if ($course->thumbnail) {
