@@ -68,11 +68,8 @@ class CategoryController extends Controller
 
     public function destroy(Category $category): JsonResponse
     {
-        if ($category->courses()->count() > 0) {
-            return response()->json([
-                'message' => 'Cannot delete category with associated courses.',
-            ], 422);
-        }
+        // Courses in this category are kept and become uncategorized.
+        $category->courses()->update(['category_id' => null]);
 
         $category->delete();
 

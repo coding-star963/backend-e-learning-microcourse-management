@@ -27,6 +27,7 @@ class Course extends Model
         'is_published',
         'difficulty_level',
         'duration',
+        'section',
     ];
 
     protected $casts = [

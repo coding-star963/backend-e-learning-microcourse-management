@@ -26,7 +26,8 @@ class DashboardController extends Controller
     private function adminDashboard(): array
     {
         $totalUsers = User::count();
-        $totalStudents = User::where('role', 'student')->count();
+        // Learners are students with at least one enrollment; admins and teachers are never counted.
+        $totalStudents = User::where('role', 'student')->whereHas('enrollments')->count();
         $totalTeachers = User::where('role', 'teacher')->count();
         $totalCourses = Course::count();
         $publishedCourses = Course::where('status', 'published')->count();

@@ -19,6 +19,7 @@ class CourseResource extends JsonResource
             'is_published' => $this->is_published,
             'difficulty_level' => $this->difficulty_level,
             'duration' => $this->duration,
+            'section' => $this->section,
             'teacher' => new UserResource($this->whenLoaded('teacher')),
             'category' => new CategoryResource($this->whenLoaded('category')),
             'created_at' => $this->created_at,
