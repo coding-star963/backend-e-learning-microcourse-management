@@ -64,7 +64,7 @@ class DatabaseSeeder extends Seeder
             $categories[] = Category::create($cat);
         }
 
-        // Create courses with lessons (1-3 lessons per course)
+        // Create courses with lessons (5 courses, 3-5 lessons per course)
         $courseData = [
             [
                 'teacher_id' => $teacher1->id,
@@ -78,8 +78,9 @@ class DatabaseSeeder extends Seeder
                 'section' => 'BSIT 1-A',
                 'lessons' => [
                     ['title' => 'Introduction to HTML', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 600, 'order' => 1, 'is_free_preview' => true],
-                    ['title' => 'Styling with CSS', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 900, 'order' => 2],
-                    ['title' => 'Flexbox & Responsive Layouts', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1000, 'order' => 3],
+                    ['title' => 'Working with Text & Links', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 2],
+                    ['title' => 'Styling with CSS', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 3],
+                    ['title' => 'Flexbox & Responsive Layouts', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1000, 'order' => 4],
                 ],
             ],
             [
@@ -90,11 +91,14 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'intermediate',
-                'duration' => '1 hour',
+                'duration' => '1 hour 30 minutes',
                 'section' => 'BSIT 2-A',
                 'lessons' => [
                     ['title' => 'Variables & Data Types', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 1, 'is_free_preview' => true],
-                    ['title' => 'Functions & DOM Manipulation', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1100, 'order' => 2],
+                    ['title' => 'Operators & Conditions', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 2],
+                    ['title' => 'Functions & Scope', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 3],
+                    ['title' => 'Arrays & Objects', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1000, 'order' => 4],
+                    ['title' => 'DOM Manipulation', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1100, 'order' => 5],
                 ],
             ],
             [
@@ -105,26 +109,12 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'beginner',
-                'duration' => '1 hour',
+                'duration' => '45 minutes',
                 'section' => 'BSCS 1-A',
                 'lessons' => [
                     ['title' => 'Conditions & Loops', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Functions & Problem Solving', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 2],
-                ],
-            ],
-            [
-                'teacher_id' => $teacher2->id,
-                'category_id' => $categories[2]->id,
-                'title' => 'Data Analysis Basics',
-                'description' => 'Clean, summarize, and chart data using spreadsheets and Python.',
-                'status' => 'published',
-                'is_published' => true,
-                'difficulty_level' => 'beginner',
-                'duration' => '45 minutes',
-                'section' => 'BSCS 2-B',
-                'lessons' => [
-                    ['title' => 'Working with Datasets', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 900, 'order' => 1, 'is_free_preview' => true],
-                    ['title' => 'Charts & Visualization', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1000, 'order' => 2],
+                    ['title' => 'Lists & Dictionaries', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 850, 'order' => 3],
                 ],
             ],
             [
@@ -135,26 +125,13 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'intermediate',
-                'duration' => '1 hour',
+                'duration' => '1 hour 15 minutes',
                 'section' => 'BSIT 3-A',
                 'lessons' => [
                     ['title' => 'Flutter Widgets', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 900, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Layouts & Navigation', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1100, 'order' => 2],
                     ['title' => 'State Management Basics', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1000, 'order' => 3],
-                ],
-            ],
-            [
-                'teacher_id' => $teacher3->id,
-                'category_id' => $categories[4]->id,
-                'title' => 'Cybersecurity Awareness',
-                'description' => 'Recognize common threats and practice safe habits online.',
-                'status' => 'published',
-                'is_published' => true,
-                'difficulty_level' => 'beginner',
-                'duration' => '30 minutes',
-                'section' => 'BSIT 1-B',
-                'lessons' => [
-                    ['title' => 'Phishing & Password Safety', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 900, 'order' => 1, 'is_free_preview' => true],
+                    ['title' => 'Connecting to a REST API', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1200, 'order' => 4],
                 ],
             ],
             [
@@ -169,7 +146,8 @@ class DatabaseSeeder extends Seeder
                 'section' => 'BSIT 2-B',
                 'lessons' => [
                     ['title' => 'Design Fundamentals', 'status' => 'draft', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 1],
-                    ['title' => 'Wireframing & Prototyping', 'status' => 'draft', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 2],
+                    ['title' => 'Color & Typography', 'status' => 'draft', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 2],
+                    ['title' => 'Wireframing & Prototyping', 'status' => 'draft', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 3],
                 ],
             ],
         ];
@@ -211,21 +189,21 @@ class DatabaseSeeder extends Seeder
 
         // Create enrollments with varied statuses and progress ('course' indexes $courses, published only)
         $enrollmentData = [
-            ['user' => 0, 'course' => 0, 'status' => 'active', 'progress' => 33.3],
-            ['user' => 1, 'course' => 0, 'status' => 'active', 'progress' => 66.7],
-            ['user' => 1, 'course' => 1, 'status' => 'active', 'progress' => 50.0],
+            ['user' => 0, 'course' => 0, 'status' => 'active', 'progress' => 25.0],
+            ['user' => 1, 'course' => 0, 'status' => 'active', 'progress' => 75.0],
+            ['user' => 1, 'course' => 1, 'status' => 'active', 'progress' => 40.0],
             ['user' => 2, 'course' => 0, 'status' => 'completed', 'progress' => 100],
-            ['user' => 2, 'course' => 2, 'status' => 'active', 'progress' => 50.0],
+            ['user' => 2, 'course' => 2, 'status' => 'active', 'progress' => 66.7],
             ['user' => 3, 'course' => 3, 'status' => 'active', 'progress' => 50.0],
-            ['user' => 3, 'course' => 4, 'status' => 'active', 'progress' => 33.3],
+            ['user' => 3, 'course' => 1, 'status' => 'active', 'progress' => 20.0],
             ['user' => 4, 'course' => 1, 'status' => 'completed', 'progress' => 100],
-            ['user' => 4, 'course' => 5, 'status' => 'completed', 'progress' => 100],
+            ['user' => 4, 'course' => 2, 'status' => 'completed', 'progress' => 100],
             ['user' => 5, 'course' => 2, 'status' => 'suspended', 'progress' => 0],
-            ['user' => 5, 'course' => 4, 'status' => 'active', 'progress' => 66.7],
+            ['user' => 5, 'course' => 3, 'status' => 'active', 'progress' => 75.0],
             ['user' => 6, 'course' => 3, 'status' => 'completed', 'progress' => 100],
-            ['user' => 7, 'course' => 5, 'status' => 'active', 'progress' => 0],
-            ['user' => 8, 'course' => 0, 'status' => 'active', 'progress' => 100],
-            ['user' => 8, 'course' => 2, 'status' => 'active', 'progress' => 50.0],
+            ['user' => 7, 'course' => 0, 'status' => 'active', 'progress' => 0],
+            ['user' => 8, 'course' => 0, 'status' => 'active', 'progress' => 50.0],
+            ['user' => 8, 'course' => 2, 'status' => 'active', 'progress' => 33.3],
         ];
 
         foreach ($enrollmentData as $eData) {

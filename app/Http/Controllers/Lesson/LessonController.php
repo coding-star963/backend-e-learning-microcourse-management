@@ -16,7 +16,7 @@ class LessonController extends Controller
 {
     public function index(Request $request, Course $course): AnonymousResourceCollection
     {
-        $query = Lesson::with(['resources']);
+        $query = Lesson::where('course_id', $course->id)->with(['resources']);
 
         if ($request->has('status') && in_array($request->status, ['draft', 'published', 'archived'])) {
             $query->where('status', $request->status);
