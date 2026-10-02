@@ -17,16 +17,19 @@ class ProgressController extends Controller
 {
     public function studentProgress(Request $request, User $user): array
     {
-        $enrollments = Enrollment::with(['course.teacher', 'course.category', 'course.lessons'])
+        $courseIds = $this->allowedCourseIds($request->user(), $user);
+
+        $enrollments = Enrollment::with(['course.teacher', 'course.category', 'course.publishedLessons'])
             ->where('user_id', $user->id)
-            ->where('status', 'active')
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->when($courseIds !== null, fn ($query) => $query->whereIn('course_id', $courseIds))
             ->get();
 
         $coursesProgress = $enrollments->map(function ($enrollment) use ($user) {
             $course = $enrollment->course;
-            $totalLessons = $course->lessons->count();
+            $totalLessons = $course->publishedLessons->count();
             $completedLessons = LessonProgress::where('user_id', $user->id)
-                ->whereIn('lesson_id', $course->lessons->pluck('id'))
+                ->whereIn('lesson_id', $course->publishedLessons->pluck('id'))
                 ->where('completed', true)
                 ->count();
 
@@ -41,6 +44,7 @@ class ProgressController extends Controller
                     'teacher' => $course->teacher->name,
                     'category' => $course->category->name ?? 'Uncategorized',
                 ],
+                'status' => $enrollment->status,
                 'total_lessons' => $totalLessons,
                 'completed_lessons' => $completedLessons,
                 'progress' => $progress,
@@ -72,17 +76,20 @@ class ProgressController extends Controller
 
     public function courseProgress(Request $request, Course $course): array
     {
+        $this->authorizeCourse($request, $course);
+
         $enrollments = Enrollment::with(['user'])
             ->where('course_id', $course->id)
             ->where('status', '!=', 'cancelled')
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $totalLessons = Lesson::where('course_id', $course->id)->count();
+        $lessonIds = $course->publishedLessons()->pluck('id');
+        $totalLessons = $lessonIds->count();
 
-        $studentsProgress = $enrollments->map(function ($enrollment) use ($course, $totalLessons) {
+        $studentsProgress = $enrollments->map(function ($enrollment) use ($lessonIds, $totalLessons) {
             $completedLessons = LessonProgress::where('user_id', $enrollment->user_id)
-                ->whereIn('lesson_id', $course->lessons->pluck('id'))
+                ->whereIn('lesson_id', $lessonIds)
                 ->where('completed', true)
                 ->count();
 
@@ -128,11 +135,13 @@ class ProgressController extends Controller
         ];
     }
 
-    public function enrollmentProgress(Enrollment $enrollment): array
+    public function enrollmentProgress(Request $request, Enrollment $enrollment): array
     {
-        $enrollment->load(['user', 'course.teacher', 'course.category']);
+        abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You do not have access to this enrollment.');
+
+        $enrollment->load(['user', 'course.teacher', 'course.category', 'course.publishedLessons']);
         $course = $enrollment->course;
-        $lessons = $course->lessons;
+        $lessons = $course->publishedLessons;
 
         $lessonProgress = LessonProgress::where('user_id', $enrollment->user_id)
             ->whereIn('lesson_id', $lessons->pluck('id'))
@@ -195,9 +204,15 @@ class ProgressController extends Controller
 
     public function learningHistory(Request $request, User $user): AnonymousResourceCollection
     {
+        $courseIds = $this->allowedCourseIds($request->user(), $user);
+
         $query = LessonProgress::with(['lesson.course', 'enrollment'])
             ->where('user_id', $user->id)
             ->where('completed', true);
+
+        if ($courseIds !== null) {
+            $query->whereHas('lesson', fn ($q) => $q->whereIn('course_id', $courseIds));
+        }
 
         if ($request->has('course_id')) {
             $query->whereHas('lesson', function ($q) use ($request) {
@@ -205,15 +220,18 @@ class ProgressController extends Controller
             });
         }
 
+        $perPage = min((int) $request->get('per_page', 15), 100);
         $history = $query->orderBy('completed_at', 'desc')
-            ->paginate($request->get('per_page', 15));
+            ->paginate($perPage > 0 ? $perPage : 15);
 
         return LessonProgressResource::collection($history);
     }
 
-    public function courseProgressSummary(Course $course): array
+    public function courseProgressSummary(Request $request, Course $course): array
     {
-        $lessons = Lesson::where('course_id', $course->id)->orderBy('order')->get();
+        $this->authorizeCourse($request, $course);
+
+        $lessons = $course->publishedLessons()->get();
         $enrollments = Enrollment::where('course_id', $course->id)->where('status', '!=', 'cancelled')->get();
 
         $lessonsSummary = $lessons->map(function ($lesson) use ($enrollments) {
@@ -261,16 +279,37 @@ class ProgressController extends Controller
 
     public function toggleLessonProgress(Request $request, Lesson $lesson): JsonResponse
     {
+        // enrollment_id is optional: a student's own enrollment in the lesson's course is used by default.
         $validated = $request->validate([
-            'enrollment_id' => 'required|exists:enrollments,id',
-            'completed' => 'required|boolean',
+            'enrollment_id' => 'sometimes|exists:enrollments,id',
+            'completed' => 'sometimes|boolean',
             'watch_duration_seconds' => 'sometimes|integer|min:0',
         ]);
+        $completed = $validated['completed'] ?? true;
+        $user = $request->user();
 
-        $enrollment = Enrollment::findOrFail($validated['enrollment_id']);
+        $enrollment = isset($validated['enrollment_id'])
+            ? Enrollment::findOrFail($validated['enrollment_id'])
+            : Enrollment::where('user_id', $user->id)->where('course_id', $lesson->course_id)->first();
 
-        if ($enrollment->user_id !== $request->user()->id && !$request->user()->isAdministrator()) {
+        if (! $enrollment) {
+            return response()->json(['message' => 'You are not enrolled in this course.'], 403);
+        }
+
+        if ((int) $enrollment->user_id !== (int) $user->id && ! $user->isAdministrator()) {
             return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ((int) $lesson->course_id !== (int) $enrollment->course_id) {
+            return response()->json(['message' => 'This lesson does not belong to the enrolled course.'], 422);
+        }
+
+        if (! in_array($enrollment->status, [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])) {
+            return response()->json(['message' => 'This enrollment is not active.'], 422);
+        }
+
+        if (! $lesson->isAvailable()) {
+            return response()->json(['message' => 'This lesson is not available yet.'], 422);
         }
 
         $progress = LessonProgress::firstOrCreate([
@@ -279,7 +318,7 @@ class ProgressController extends Controller
             'enrollment_id' => $enrollment->id,
         ]);
 
-        if ($validated['completed']) {
+        if ($completed) {
             $progress->markComplete();
         } else {
             $progress->markIncomplete();
@@ -293,14 +332,14 @@ class ProgressController extends Controller
 
         return response()->json([
             'progress' => new LessonProgressResource($progress->fresh()->load(['lesson', 'enrollment'])),
-            'message' => $validated['completed'] ? 'Lesson marked as completed.' : 'Lesson marked as incomplete.',
+            'message' => $completed ? 'Lesson marked as completed.' : 'Lesson marked as incomplete.',
         ]);
     }
 
     private function recalculateEnrollmentProgress(Enrollment $enrollment): void
     {
-        $course = $enrollment->course;
-        $totalLessons = Lesson::where('course_id', $course->id)->count();
+        $lessonIds = $enrollment->course->publishedLessons()->pluck('id');
+        $totalLessons = $lessonIds->count();
 
         if ($totalLessons === 0) {
             $enrollment->updateProgress(0);
@@ -308,7 +347,7 @@ class ProgressController extends Controller
         }
 
         $completedLessons = LessonProgress::where('user_id', $enrollment->user_id)
-            ->whereIn('lesson_id', $course->lessons->pluck('id'))
+            ->whereIn('lesson_id', $lessonIds)
             ->where('completed', true)
             ->count();
 
@@ -321,6 +360,32 @@ class ProgressController extends Controller
 
         if ($progress >= 100 && $enrollment->status === Enrollment::STATUS_ACTIVE) {
             $enrollment->complete();
+        } elseif ($progress < 100 && $enrollment->status === Enrollment::STATUS_COMPLETED) {
+            // A lesson was marked incomplete again, so the course is no longer finished.
+            $enrollment->update([
+                'status' => Enrollment::STATUS_ACTIVE,
+                'completed_at' => null,
+            ]);
         }
+    }
+
+    /**
+     * Course ids the viewer may see for this student's progress:
+     * null = all (administrator or the student themself), or the teacher's own course ids.
+     */
+    private function allowedCourseIds(User $viewer, User $student): ?array
+    {
+        if ($viewer->isAdministrator() || (int) $viewer->id === (int) $student->id) {
+            return null;
+        }
+
+        abort_unless($viewer->isTeacher(), 403, 'You can only view your own progress.');
+
+        return Course::where('teacher_id', $viewer->id)->pluck('id')->all();
+    }
+
+    private function authorizeCourse(Request $request, Course $course): void
+    {
+        abort_unless($course->isManageableBy($request->user()), 403, 'You can only view your own courses.');
     }
 }

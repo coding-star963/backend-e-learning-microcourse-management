@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Notifications\PasswordResetTokenNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -103,6 +105,24 @@ class AuthenticationTest extends TestCase
             ->assertJson([
                 'message' => 'Successfully logged out.',
             ]);
+    }
+
+    public function test_logout_only_revokes_the_current_device(): void
+    {
+        $user = User::create([
+            'name' => 'User',
+            'email' => 'two-devices@example.com',
+            'password' => 'password',
+            'role' => 'student',
+        ]);
+        $webToken = $user->createToken('auth-token')->plainTextToken;
+        $mobileToken = $user->createToken('auth-token')->plainTextToken;
+
+        $this->withToken($webToken)->postJson('/api/logout')->assertStatus(200);
+
+        $this->assertSame(1, $user->tokens()->count());
+        $this->app['auth']->forgetGuards();
+        $this->withToken($mobileToken)->getJson('/api/user')->assertStatus(200);
     }
 
     public function test_user_can_view_profile(): void
@@ -227,7 +247,9 @@ class AuthenticationTest extends TestCase
 
     public function test_user_can_request_password_reset_token(): void
     {
-        User::create([
+        Notification::fake();
+
+        $user = User::create([
             'name' => 'Reset User',
             'email' => 'reset@example.com',
             'password' => 'password',
@@ -239,16 +261,21 @@ class AuthenticationTest extends TestCase
             'email' => 'reset@example.com',
         ]);
 
+        // The token is emailed, never returned in the response.
         $response->assertStatus(200)
-            ->assertJsonStructure(['message', 'token']);
+            ->assertJsonStructure(['message'])
+            ->assertJsonMissingPath('token');
 
         $this->assertDatabaseHas('password_reset_tokens', [
             'email' => 'reset@example.com',
         ]);
+        Notification::assertSentTo($user, PasswordResetTokenNotification::class);
     }
 
     public function test_user_can_reset_password_with_valid_token(): void
     {
+        Notification::fake();
+
         $user = User::create([
             'name' => 'Reset User',
             'email' => 'reset2@example.com',
@@ -257,11 +284,16 @@ class AuthenticationTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $forgotRes = $this->postJson('/api/forgot-password', [
+        $this->postJson('/api/forgot-password', [
             'email' => 'reset2@example.com',
-        ]);
+        ])->assertStatus(200);
 
-        $token = $forgotRes->json('token');
+        $token = null;
+        Notification::assertSentTo($user, PasswordResetTokenNotification::class, function ($notification) use ($user, &$token) {
+            $token = collect($notification->toMail($user)->outroLines)->first(fn ($line) => strlen($line) === 60);
+
+            return $token !== null;
+        });
 
         $resetRes = $this->postJson('/api/reset-password', [
             'email' => 'reset2@example.com',
@@ -283,6 +315,8 @@ class AuthenticationTest extends TestCase
 
     public function test_user_cannot_reset_password_with_invalid_token(): void
     {
+        Notification::fake();
+
         User::create([
             'name' => 'Reset User',
             'email' => 'reset3@example.com',

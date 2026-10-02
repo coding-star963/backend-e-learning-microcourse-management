@@ -18,6 +18,10 @@ class EnrollmentResource extends JsonResource
             'enrolled_at' => $this->enrolled_at,
             'completed_at' => $this->completed_at,
             'last_accessed_at' => $this->last_accessed_at,
+            'completed_lesson_ids' => $this->whenLoaded(
+                'lessonProgress',
+                fn () => $this->lessonProgress->where('completed', true)->pluck('lesson_id')->values(),
+            ),
             'user' => new UserResource($this->whenLoaded('user')),
             'course' => new CourseResource($this->whenLoaded('course')),
             'created_at' => $this->created_at,

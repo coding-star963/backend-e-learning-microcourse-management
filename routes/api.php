@@ -20,7 +20,7 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
 
@@ -76,7 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Lesson routes
-    Route::prefix('courses/{course}/lessons')->group(function () {
+    // scopeBindings(): a {lesson} must belong to its {course}, a {resource} to its {lesson}
+    Route::prefix('courses/{course}/lessons')->scopeBindings()->group(function () {
         Route::get('/', [LessonController::class, 'index']);
         Route::get('/{lesson}', [LessonController::class, 'show']);
         Route::middleware('role:administrator,teacher')->group(function () {
@@ -97,28 +98,29 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Enrollment routes
     Route::prefix('enrollments')->group(function () {
-        Route::get('/', [EnrollmentController::class, 'index']);
-        Route::post('/', [EnrollmentController::class, 'store']);
-        Route::get('/stats', [EnrollmentController::class, 'stats']);
-        Route::get('/students', [EnrollmentController::class, 'students']);
-        Route::get('/{enrollment}', [EnrollmentController::class, 'show']);
-        Route::get('/course/{course}', [EnrollmentController::class, 'courseEnrollments']);
-        Route::get('/student/{user}', [EnrollmentController::class, 'studentEnrollments']);
         Route::middleware('role:administrator,teacher')->group(function () {
+            Route::get('/', [EnrollmentController::class, 'index']);
             Route::get('/stats', [EnrollmentController::class, 'stats']);
+            Route::get('/students', [EnrollmentController::class, 'students']);
+            Route::get('/course/{course}', [EnrollmentController::class, 'courseEnrollments']);
+            Route::get('/course/{course}/stats', [EnrollmentController::class, 'courseStats']);
             Route::put('/{enrollment}', [EnrollmentController::class, 'update']);
             Route::delete('/{enrollment}', [EnrollmentController::class, 'destroy']);
-            Route::get('/course/{course}/stats', [EnrollmentController::class, 'courseStats']);
         });
+        // Students may enroll themselves and read their own records (checked in the controller).
+        Route::post('/', [EnrollmentController::class, 'store']);
+        Route::get('/student/{user}', [EnrollmentController::class, 'studentEnrollments']);
+        Route::get('/{enrollment}', [EnrollmentController::class, 'show']);
     });
 
     // Progress routes
     Route::prefix('progress')->group(function () {
+        // Students may read their own progress (checked in the controller).
         Route::get('/student/{user}', [ProgressController::class, 'studentProgress']);
-        Route::get('/course/{course}', [ProgressController::class, 'courseProgress']);
         Route::get('/enrollment/{enrollment}', [ProgressController::class, 'enrollmentProgress']);
         Route::get('/history/{user}', [ProgressController::class, 'learningHistory']);
         Route::middleware('role:administrator,teacher')->group(function () {
+            Route::get('/course/{course}', [ProgressController::class, 'courseProgress']);
             Route::get('/course/{course}/summary', [ProgressController::class, 'courseProgressSummary']);
         });
     });
@@ -128,11 +130,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Announcement routes
     Route::prefix('announcements')->group(function () {
+        // Registered before /{announcement} so "history" is not treated as an id.
+        Route::middleware('role:administrator,teacher')
+            ->get('/history', [AnnouncementController::class, 'notificationHistory']);
         Route::get('/', [AnnouncementController::class, 'index']);
         Route::get('/{announcement}', [AnnouncementController::class, 'show']);
         Route::middleware('role:administrator,teacher')->group(function () {
             Route::post('/', [AnnouncementController::class, 'store']);
-            Route::get('/history', [AnnouncementController::class, 'notificationHistory']);
             Route::put('/{announcement}', [AnnouncementController::class, 'update']);
             Route::delete('/{announcement}', [AnnouncementController::class, 'destroy']);
             Route::post('/{announcement}/publish', [AnnouncementController::class, 'publish']);

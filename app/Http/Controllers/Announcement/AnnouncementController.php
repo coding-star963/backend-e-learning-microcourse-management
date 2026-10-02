@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Announcement;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AnnouncementResource;
 use App\Models\Announcement;
+use App\Models\Course;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -14,6 +16,7 @@ class AnnouncementController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Announcement::with(['user', 'course']);
+        $query->visibleTo($request->user());
 
         if ($request->has('type') && in_array($request->type, ['general', 'course_update', 'important'])) {
             $query->where('type', $request->type);
@@ -51,6 +54,8 @@ class AnnouncementController extends Controller
             'is_published' => 'sometimes|boolean',
         ]);
 
+        $this->authorizeCourse($request->user(), $validated['course_id'] ?? null);
+
         $validated['user_id'] = $request->user()->id;
 
         if (isset($validated['is_published']) && $validated['is_published']) {
@@ -65,8 +70,12 @@ class AnnouncementController extends Controller
         ], 201);
     }
 
-    public function show(Announcement $announcement): AnnouncementResource
+    public function show(Request $request, Announcement $announcement): AnnouncementResource
     {
+        $query = Announcement::whereKey($announcement->id);
+        $query->visibleTo($request->user());
+        abort_unless($query->exists(), 404, 'Announcement not found.');
+
         $announcement->load(['user', 'course']);
 
         return new AnnouncementResource($announcement);
@@ -74,6 +83,8 @@ class AnnouncementController extends Controller
 
     public function update(Request $request, Announcement $announcement): JsonResponse
     {
+        abort_unless($announcement->isManageableBy($request->user()), 403, 'You can only manage your own announcements.');
+
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'content' => 'sometimes|string|max:5000',
@@ -81,6 +92,10 @@ class AnnouncementController extends Controller
             'course_id' => 'nullable|exists:courses,id',
             'is_published' => 'sometimes|boolean',
         ]);
+
+        if (array_key_exists('course_id', $validated)) {
+            $this->authorizeCourse($request->user(), $validated['course_id']);
+        }
 
         if (isset($validated['is_published'])) {
             if ($validated['is_published'] && !$announcement->is_published) {
@@ -98,8 +113,10 @@ class AnnouncementController extends Controller
         ]);
     }
 
-    public function destroy(Announcement $announcement): JsonResponse
+    public function destroy(Request $request, Announcement $announcement): JsonResponse
     {
+        abort_unless($announcement->isManageableBy($request->user()), 403, 'You can only manage your own announcements.');
+
         $announcement->delete();
 
         return response()->json([
@@ -107,8 +124,10 @@ class AnnouncementController extends Controller
         ]);
     }
 
-    public function publish(Announcement $announcement): JsonResponse
+    public function publish(Request $request, Announcement $announcement): JsonResponse
     {
+        abort_unless($announcement->isManageableBy($request->user()), 403, 'You can only manage your own announcements.');
+
         $announcement->publish();
 
         return response()->json([
@@ -117,8 +136,10 @@ class AnnouncementController extends Controller
         ]);
     }
 
-    public function unpublish(Announcement $announcement): JsonResponse
+    public function unpublish(Request $request, Announcement $announcement): JsonResponse
     {
+        abort_unless($announcement->isManageableBy($request->user()), 403, 'You can only manage your own announcements.');
+
         $announcement->unpublish();
 
         return response()->json([
@@ -148,5 +169,21 @@ class AnnouncementController extends Controller
             ->paginate($request->get('per_page', 15));
 
         return AnnouncementResource::collection($announcements);
+    }
+
+    /**
+     * Teachers may only target courses they own (null = all courses).
+     */
+    private function authorizeCourse(User $user, $courseId): void
+    {
+        if ($courseId === null || $user->isAdministrator()) {
+            return;
+        }
+
+        abort_unless(
+            Course::whereKey($courseId)->where('teacher_id', $user->id)->exists(),
+            403,
+            'You can only post announcements to your own courses.'
+        );
     }
 }

@@ -8,5 +8,8 @@ return [
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
     'max_age' => 0,
-    'supports_credentials' => true,
+    // The web and mobile apps authenticate with Bearer tokens, not cookies, so
+    // cross-origin cookies are not allowed. ('*' origins + credentials would let
+    // any website make logged-in requests.)
+    'supports_credentials' => false,
 ];

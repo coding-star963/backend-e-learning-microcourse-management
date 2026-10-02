@@ -57,7 +57,11 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->tokens()->delete();
+        // Only sign out this device; the user's other sessions (web/mobile) stay active.
+        $token = $request->user()->currentAccessToken();
+        if ($token instanceof \Laravel\Sanctum\PersonalAccessToken) {
+            $token->delete();
+        }
 
         return response()->json([
             'message' => 'Successfully logged out.',
@@ -91,9 +95,12 @@ class AuthController extends Controller
             ]
         );
 
+        // The token is only sent by email; returning it would let anyone reset any account.
+        \App\Models\User::where('email', $request->email)->firstOrFail()
+            ->notify(new \App\Notifications\PasswordResetTokenNotification($token));
+
         return response()->json([
-            'message' => 'Password reset token has been generated successfully.',
-            'token' => $token,
+            'message' => 'Password reset instructions have been sent to your email address.',
         ]);
     }
 

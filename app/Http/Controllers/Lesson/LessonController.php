@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Lesson;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LessonResource;
 use App\Http\Resources\LessonResourceResource;
+use App\Models\Announcement;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\LessonProgress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -16,24 +18,38 @@ class LessonController extends Controller
 {
     public function index(Request $request, Course $course): AnonymousResourceCollection
     {
+        $user = $request->user();
+        abort_unless($course->isVisibleTo($user), 403, 'You do not have access to this course.');
+
         $query = Lesson::where('course_id', $course->id)->with(['resources']);
 
-        if ($request->has('status') && in_array($request->status, ['draft', 'published', 'archived'])) {
+        // Students only see published lessons.
+        if (! $course->isManageableBy($user)) {
+            $query->where('status', Lesson::STATUS_PUBLISHED);
+        } elseif ($request->has('status') && in_array($request->status, ['draft', 'published', 'archived'])) {
             $query->where('status', $request->status);
         }
 
-        $lessons = $query->orderBy('order')->orderBy('created_at', 'desc')->paginate($request->get('per_page', 50));
+        $perPage = min((int) $request->get('per_page', 50), 100);
+        $lessons = $query->orderBy('order')->orderBy('created_at', 'desc')->paginate($perPage > 0 ? $perPage : 50);
+
+        if ($user->isStudent()) {
+            $this->attachCompletion($lessons->getCollection(), $user->id);
+        }
 
         return LessonResource::collection($lessons);
     }
 
     public function store(Request $request, Course $course): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:10000',
             'status' => 'sometimes|in:draft,published,archived',
             'availability' => 'sometimes|in:free,locked,scheduled',
+            'available_at' => 'nullable|date|required_if:availability,scheduled',
             'is_free_preview' => 'sometimes|boolean',
             'video' => 'nullable|file|mimetypes:video/mp4,video/webm,video/ogg|max:102400',
             'audio' => 'nullable|file|mimetypes:audio/mpeg,audio/wav,audio/ogg|max:51200',
@@ -57,7 +73,12 @@ class LessonController extends Controller
             $validated['audio_size'] = $file->getSize();
         }
 
+        $validated = $this->normalizeSchedule($validated);
         $lesson = Lesson::create($validated);
+
+        if ($lesson->isPublished()) {
+            $this->announceNewLesson($request, $course, $lesson);
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->load('resources')),
@@ -65,20 +86,34 @@ class LessonController extends Controller
         ], 201);
     }
 
-    public function show(Course $course, Lesson $lesson): LessonResource
+    public function show(Request $request, Course $course, Lesson $lesson): LessonResource
     {
+        $user = $request->user();
+        abort_unless($course->isVisibleTo($user), 403, 'You do not have access to this course.');
+
+        if (! $course->isManageableBy($user)) {
+            abort_unless($lesson->isPublished(), 404, 'Lesson not found.');
+        }
+
         $lesson->load('resources');
+
+        if ($user->isStudent()) {
+            $this->attachCompletion(collect([$lesson]), $user->id);
+        }
 
         return new LessonResource($lesson);
     }
 
     public function update(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'description' => 'nullable|string|max:10000',
             'status' => 'sometimes|in:draft,published,archived',
             'availability' => 'sometimes|in:free,locked,scheduled',
+            'available_at' => 'nullable|date|required_if:availability,scheduled',
             'is_free_preview' => 'sometimes|boolean',
             'video' => 'nullable|file|mimetypes:video/mp4,video/webm,video/ogg|max:102400',
             'audio' => 'nullable|file|mimetypes:audio/mpeg,audio/wav,audio/ogg|max:51200',
@@ -105,7 +140,12 @@ class LessonController extends Controller
             $validated['audio_size'] = $file->getSize();
         }
 
-        $lesson->update($validated);
+        $wasPublished = $lesson->isPublished();
+        $lesson->update($this->normalizeSchedule($validated));
+
+        if (! $wasPublished && $lesson->isPublished()) {
+            $this->announceNewLesson($request, $course, $lesson);
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -113,8 +153,10 @@ class LessonController extends Controller
         ]);
     }
 
-    public function destroy(Course $course, Lesson $lesson): JsonResponse
+    public function destroy(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         if ($lesson->video_path) {
             Storage::disk('public')->delete($lesson->video_path);
         }
@@ -132,9 +174,16 @@ class LessonController extends Controller
         ]);
     }
 
-    public function publish(Course $course, Lesson $lesson): JsonResponse
+    public function publish(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
+        $wasPublished = $lesson->isPublished();
         $lesson->publish();
+
+        if (! $wasPublished) {
+            $this->announceNewLesson($request, $course, $lesson);
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -142,8 +191,10 @@ class LessonController extends Controller
         ]);
     }
 
-    public function unpublish(Course $course, Lesson $lesson): JsonResponse
+    public function unpublish(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $lesson->unpublish();
 
         return response()->json([
@@ -152,8 +203,10 @@ class LessonController extends Controller
         ]);
     }
 
-    public function archive(Course $course, Lesson $lesson): JsonResponse
+    public function archive(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $lesson->archive();
 
         return response()->json([
@@ -164,16 +217,23 @@ class LessonController extends Controller
 
     public function updateStatus(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $validated = $request->validate([
             'status' => 'required|in:draft,published,archived',
         ]);
 
         $status = $validated['status'];
+        $wasPublished = $lesson->isPublished();
         match ($status) {
             'published' => $lesson->publish(),
             'archived' => $lesson->archive(),
             default => $lesson->unpublish(),
         };
+
+        if (! $wasPublished && $lesson->isPublished()) {
+            $this->announceNewLesson($request, $course, $lesson);
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -183,11 +243,17 @@ class LessonController extends Controller
 
     public function updateAvailability(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $validated = $request->validate([
             'availability' => 'required|in:free,locked,scheduled',
+            'available_at' => 'nullable|date|required_if:availability,scheduled',
         ]);
 
-        $lesson->update(['availability' => $validated['availability']]);
+        $lesson->update($this->normalizeSchedule([
+            'availability' => $validated['availability'],
+            'available_at' => $validated['available_at'] ?? null,
+        ]));
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -197,6 +263,8 @@ class LessonController extends Controller
 
     public function reorder(Request $request, Course $course): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $validated = $request->validate([
             'lesson_ids' => 'required|array',
             'lesson_ids.*' => 'exists:lessons,id',
@@ -221,8 +289,11 @@ class LessonController extends Controller
 
     public function addResource(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
+        // Only learning materials are allowed into public storage (no scripts/executables).
         $validated = $request->validate([
-            'file' => 'required|file|max:102400',
+            'file' => 'required|file|max:102400|mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,txt,csv,jpg,jpeg,png,gif,webp,mp4,webm,mp3,wav,ogg',
             'name' => 'nullable|string|max:255',
         ]);
 
@@ -237,14 +308,25 @@ class LessonController extends Controller
             'order' => $nextOrder,
         ]);
 
+        if ($lesson->isPublished()) {
+            Announcement::postCourseUpdate(
+                $course,
+                $request->user(),
+                "New learning material: {$resource->name}",
+                "A new resource was added to the lesson \"{$lesson->title}\" in {$course->title}."
+            );
+        }
+
         return response()->json([
             'resource' => new LessonResourceResource($resource),
             'message' => 'Resource uploaded successfully.',
         ], 201);
     }
 
-    public function deleteResource(Course $course, Lesson $lesson, \App\Models\LessonResource $resource): JsonResponse
+    public function deleteResource(Request $request, Course $course, Lesson $lesson, \App\Models\LessonResource $resource): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         if ($resource->lesson_id !== $lesson->id) {
             return response()->json(['message' => 'Resource not found.'], 404);
         }
@@ -259,6 +341,8 @@ class LessonController extends Controller
 
     public function reorderResources(Request $request, Course $course, Lesson $lesson): JsonResponse
     {
+        $this->authorizeManage($request, $course);
+
         $validated = $request->validate([
             'resource_ids' => 'required|array',
             'resource_ids.*' => 'exists:lesson_resources,id',
@@ -276,5 +360,51 @@ class LessonController extends Controller
             'resources' => LessonResourceResource::collection($resources),
             'message' => 'Resource order updated successfully.',
         ]);
+    }
+
+    private function authorizeManage(Request $request, Course $course): void
+    {
+        abort_unless($course->isManageableBy($request->user()), 403, 'You can only manage lessons in your own courses.');
+    }
+
+    /**
+     * Flag each lesson with whether this student has completed it.
+     */
+    private function attachCompletion($lessons, int $userId): void
+    {
+        $completedIds = LessonProgress::where('user_id', $userId)
+            ->whereIn('lesson_id', $lessons->pluck('id'))
+            ->where('completed', true)
+            ->pluck('lesson_id')
+            ->all();
+
+        foreach ($lessons as $lesson) {
+            $lesson->setAttribute('is_completed', in_array($lesson->id, $completedIds));
+        }
+    }
+
+    /**
+     * 6.2 Course updates: tell enrolled students that a new lesson is out.
+     */
+    private function announceNewLesson(Request $request, Course $course, Lesson $lesson): void
+    {
+        Announcement::postCourseUpdate(
+            $course,
+            $request->user(),
+            "New lesson: {$lesson->title}",
+            "A new lesson is now available in {$course->title}."
+        );
+    }
+
+    /**
+     * Only scheduled lessons keep an opening date.
+     */
+    private function normalizeSchedule(array $data): array
+    {
+        if (isset($data['availability']) && $data['availability'] !== Lesson::AVAILABILITY_SCHEDULED) {
+            $data['available_at'] = null;
+        }
+
+        return $data;
     }
 }

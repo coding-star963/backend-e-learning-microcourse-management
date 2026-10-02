@@ -47,6 +47,19 @@ class Enrollment extends Model
         return $this->hasMany(LessonProgress::class);
     }
 
+    /**
+     * Admins see every enrollment, teachers see enrollments in their own
+     * courses, and students see only their own.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        if ($user->isAdministrator() || (int) $this->user_id === (int) $user->id) {
+            return true;
+        }
+
+        return $user->isTeacher() && (int) $this->course->teacher_id === (int) $user->id;
+    }
+
     public function isActive(): bool
     {
         return $this->status === self::STATUS_ACTIVE;

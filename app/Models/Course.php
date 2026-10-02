@@ -22,6 +22,7 @@ class Course extends Model
         'title',
         'slug',
         'description',
+        'learning_objectives',
         'thumbnail',
         'status',
         'is_published',
@@ -37,14 +38,48 @@ class Course extends Model
     protected static function booted(): void
     {
         static::creating(function (Course $course) {
-            $course->slug = Str::slug($course->title);
+            $course->slug = static::uniqueSlug($course->title);
         });
 
         static::updating(function (Course $course) {
             if ($course->isDirty('title')) {
-                $course->slug = Str::slug($course->title);
+                $course->slug = static::uniqueSlug($course->title, $course->id);
             }
         });
+    }
+
+    /**
+     * Build a slug that is not used by another course ("intro", "intro-2", ...),
+     * so two courses with the same title do not violate the unique index.
+     */
+    public static function uniqueSlug(string $title, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($title) ?: 'course';
+        $slug = $base;
+        $suffix = 2;
+
+        while (static::where('slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $slug = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Learning objectives as a list (stored one per line).
+     *
+     * @return array<int, string>
+     */
+    public function getLearningObjectivesListAttribute(): array
+    {
+        return collect(preg_split('/\r\n|\r|\n/', (string) $this->learning_objectives))
+            ->map(fn ($line) => trim($line))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function teacher(): BelongsTo
@@ -60,6 +95,16 @@ class Course extends Model
     public function lessons(): HasMany
     {
         return $this->hasMany(Lesson::class)->orderBy('order');
+    }
+
+    /**
+     * Lessons students can see; progress percentages are based on these.
+     */
+    public function publishedLessons(): HasMany
+    {
+        return $this->hasMany(Lesson::class)
+            ->where('status', Lesson::STATUS_PUBLISHED)
+            ->orderBy('order');
     }
 
     public function enrollments(): HasMany
@@ -123,8 +168,46 @@ class Course extends Model
         ]);
     }
 
+    /**
+     * Administrators manage every course; teachers manage only their own.
+     */
+    public function isManageableBy(User $user): bool
+    {
+        return $user->isAdministrator() || (int) $this->teacher_id === (int) $user->id;
+    }
+
+    /**
+     * Students see published courses, plus any course they are enrolled in.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        if ($this->isManageableBy($user)) {
+            return true;
+        }
+
+        if (! $user->isStudent()) {
+            return false;
+        }
+
+        return $this->isPublished()
+            || $this->enrollments()->where('user_id', $user->id)->exists();
+    }
+
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Resolve {course} by slug (web app) or by numeric id (mobile app).
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if ($field !== null) {
+            return parent::resolveRouteBinding($value, $field);
+        }
+
+        return static::where('slug', $value)->first()
+            ?? (ctype_digit((string) $value) ? static::find($value) : null);
     }
 }

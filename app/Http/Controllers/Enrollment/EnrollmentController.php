@@ -19,6 +19,7 @@ class EnrollmentController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Enrollment::with(['user', 'course.teacher', 'course.category']);
+        $this->scopeToTeacherCourses($request, $query);
 
         if ($request->has('status') && in_array($request->status, ['active', 'completed', 'cancelled', 'suspended'])) {
             $query->where('status', $request->status);
@@ -51,6 +52,10 @@ class EnrollmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->user()->isStudent()) {
+            return $this->selfEnroll($request);
+        }
+
         // Either enroll an existing student (user_id) or register a new student and enroll them.
         $validated = $request->validate([
             'course_id' => 'required|exists:courses,id',
@@ -61,6 +66,12 @@ class EnrollmentController extends Controller
         ], [
             'user_id.exists' => 'The selected account is not a student.',
         ]);
+
+        abort_unless(
+            Course::findOrFail($validated['course_id'])->isManageableBy($request->user()),
+            403,
+            'You can only enroll students in your own courses.'
+        );
 
         if (! empty($validated['user_id'])) {
             $exists = Enrollment::where('user_id', $validated['user_id'])
@@ -122,15 +133,19 @@ class EnrollmentController extends Controller
         return UserResource::collection($query->orderBy('name')->get());
     }
 
-    public function show(Enrollment $enrollment): EnrollmentResource
+    public function show(Request $request, Enrollment $enrollment): EnrollmentResource
     {
-        $enrollment->load(['user', 'course.teacher', 'course.category', 'course.lessons']);
+        abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You do not have access to this enrollment.');
+
+        $enrollment->load(['user', 'course.teacher', 'course.category', 'course.lessons', 'course.publishedLessons:id,course_id,order,status', 'lessonProgress']);
 
         return new EnrollmentResource($enrollment);
     }
 
     public function update(Request $request, Enrollment $enrollment): JsonResponse
     {
+        abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You can only manage enrollments in your own courses.');
+
         $validated = $request->validate([
             'status' => 'sometimes|in:active,completed,cancelled,suspended',
             'progress' => 'sometimes|numeric|min:0|max:100',
@@ -156,8 +171,10 @@ class EnrollmentController extends Controller
         ]);
     }
 
-    public function destroy(Enrollment $enrollment): JsonResponse
+    public function destroy(Request $request, Enrollment $enrollment): JsonResponse
     {
+        abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You can only manage enrollments in your own courses.');
+
         $enrollment->delete();
 
         return response()->json([
@@ -165,14 +182,17 @@ class EnrollmentController extends Controller
         ]);
     }
 
-    public function stats(): array
+    public function stats(Request $request): array
     {
-        $total = Enrollment::count();
-        $active = Enrollment::where('status', 'active')->count();
-        $completed = Enrollment::where('status', 'completed')->count();
-        $cancelled = Enrollment::where('status', 'cancelled')->count();
-        $suspended = Enrollment::where('status', 'suspended')->count();
-        $averageProgress = Enrollment::where('status', 'active')->avg('progress') ?? 0;
+        $base = Enrollment::query();
+        $this->scopeToTeacherCourses($request, $base);
+
+        $total = (clone $base)->count();
+        $active = (clone $base)->where('status', 'active')->count();
+        $completed = (clone $base)->where('status', 'completed')->count();
+        $cancelled = (clone $base)->where('status', 'cancelled')->count();
+        $suspended = (clone $base)->where('status', 'suspended')->count();
+        $averageProgress = (clone $base)->where('status', 'active')->avg('progress') ?? 0;
 
         return [
             'total' => $total,
@@ -184,8 +204,10 @@ class EnrollmentController extends Controller
         ];
     }
 
-    public function courseStats(Course $course): array
+    public function courseStats(Request $request, Course $course): array
     {
+        abort_unless($course->isManageableBy($request->user()), 403, 'You can only view your own courses.');
+
         $total = Enrollment::where('course_id', $course->id)->count();
         $active = Enrollment::where('course_id', $course->id)->where('status', 'active')->count();
         $completed = Enrollment::where('course_id', $course->id)->where('status', 'completed')->count();
@@ -201,6 +223,8 @@ class EnrollmentController extends Controller
 
     public function courseEnrollments(Request $request, Course $course): AnonymousResourceCollection
     {
+        abort_unless($course->isManageableBy($request->user()), 403, 'You can only view your own courses.');
+
         $query = Enrollment::with(['user'])
             ->where('course_id', $course->id);
 
@@ -223,8 +247,16 @@ class EnrollmentController extends Controller
 
     public function studentEnrollments(Request $request, User $user): AnonymousResourceCollection
     {
-        $query = Enrollment::with(['course.teacher', 'course.category'])
+        $viewer = $request->user();
+        abort_unless(
+            $viewer->isAdministrator() || $viewer->isTeacher() || (int) $viewer->id === (int) $user->id,
+            403,
+            'You can only view your own enrollments.'
+        );
+
+        $query = Enrollment::with(['course.teacher', 'course.category', 'course.publishedLessons:id,course_id,order,status', 'lessonProgress'])
             ->where('user_id', $user->id);
+        $this->scopeToTeacherCourses($request, $query);
 
         if ($request->has('status') && in_array($request->status, ['active', 'completed', 'cancelled', 'suspended'])) {
             $query->where('status', $request->status);
@@ -240,5 +272,59 @@ class EnrollmentController extends Controller
         $enrollments = $query->orderBy('created_at', 'desc')->paginate($request->get('per_page', 15));
 
         return EnrollmentResource::collection($enrollments);
+    }
+
+    /**
+     * A student enrolls themself in a published course (mobile app).
+     */
+    private function selfEnroll(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'course_id' => 'required|exists:courses,id',
+        ]);
+
+        $student = $request->user();
+        $course = Course::findOrFail($validated['course_id']);
+
+        if (! $course->isPublished()) {
+            return response()->json([
+                'message' => 'This course is not open for enrollment.',
+            ], 422);
+        }
+
+        $exists = Enrollment::where('user_id', $student->id)
+            ->where('course_id', $course->id)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'message' => 'You are already enrolled in this course.',
+            ], 422);
+        }
+
+        $enrollment = Enrollment::create([
+            'user_id' => $student->id,
+            'course_id' => $course->id,
+            'status' => Enrollment::STATUS_ACTIVE,
+            'progress' => 0,
+            'enrolled_at' => now(),
+        ]);
+
+        return response()->json([
+            'enrollment' => new EnrollmentResource($enrollment->load(['user', 'course.teacher', 'course.category', 'lessonProgress'])),
+            'message' => 'Enrolled successfully.',
+        ], 201);
+    }
+
+    /**
+     * Teachers only see enrollments in courses they own.
+     */
+    private function scopeToTeacherCourses(Request $request, $query): void
+    {
+        $user = $request->user();
+
+        if ($user->isTeacher()) {
+            $query->whereIn('course_id', Course::where('teacher_id', $user->id)->select('id'));
+        }
     }
 }

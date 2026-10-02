@@ -25,6 +25,7 @@ class Lesson extends Model
         'description',
         'status',
         'availability',
+        'available_at',
         'order',
         'video_path',
         'audio_path',
@@ -42,6 +43,7 @@ class Lesson extends Model
         'audio_size' => 'integer',
         'duration_seconds' => 'integer',
         'is_free_preview' => 'boolean',
+        'available_at' => 'datetime',
     ];
 
     public function course(): BelongsTo
@@ -82,6 +84,23 @@ class Lesson extends Model
     public function isLocked(): bool
     {
         return $this->availability === self::AVAILABILITY_LOCKED;
+    }
+
+    /**
+     * Whether students can open this lesson now: published, and either free
+     * or scheduled with an opening date that has passed.
+     */
+    public function isAvailable(): bool
+    {
+        if (! $this->isPublished()) {
+            return false;
+        }
+
+        return match ($this->availability) {
+            self::AVAILABILITY_FREE => true,
+            self::AVAILABILITY_SCHEDULED => $this->available_at !== null && $this->available_at->isPast(),
+            default => false,
+        };
     }
 
     public function publish(): void

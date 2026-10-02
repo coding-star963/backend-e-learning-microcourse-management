@@ -119,6 +119,11 @@ class UserController extends Controller
             'is_active' => !$user->is_active,
         ]);
 
+        // Sign a deactivated user out of the web and mobile apps immediately.
+        if (! $user->is_active) {
+            $user->tokens()->delete();
+        }
+
         $status = $user->is_active ? 'activated' : 'deactivated';
 
         return response()->json([

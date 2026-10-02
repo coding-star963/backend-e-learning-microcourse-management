@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,6 +38,62 @@ class Announcement extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Admins see everything. Teachers see their own announcements plus published ones
+     * for all courses or their courses. Students see published ones for all courses
+     * or courses they are enrolled in.
+     */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        if ($user->isAdministrator()) {
+            return;
+        }
+
+        $courseIds = $user->isTeacher()
+            ? Course::where('teacher_id', $user->id)->select('id')
+            : Enrollment::where('user_id', $user->id)->select('course_id');
+
+        $query->where(function ($q) use ($user, $courseIds) {
+            $q->where(function ($published) use ($courseIds) {
+                $published->where('is_published', true)
+                    ->where(fn ($scope) => $scope->whereNull('course_id')->orWhereIn('course_id', $courseIds));
+            });
+
+            if ($user->isTeacher()) {
+                $q->orWhere('user_id', $user->id);
+            }
+        });
+    }
+
+    /**
+     * Publish an automatic "course update" to students of a published course
+     * (e.g. a new lesson or new learning material).
+     */
+    public static function postCourseUpdate(Course $course, User $author, string $title, string $content): void
+    {
+        if (! $course->isPublished()) {
+            return;
+        }
+
+        static::create([
+            'user_id' => $author->id,
+            'course_id' => $course->id,
+            'title' => $title,
+            'content' => $content,
+            'type' => self::TYPE_COURSE_UPDATE,
+            'is_published' => true,
+            'published_at' => now(),
+        ]);
+    }
+
+    /**
+     * Administrators manage every announcement; teachers manage their own.
+     */
+    public function isManageableBy(User $user): bool
+    {
+        return $user->isAdministrator() || (int) $this->user_id === (int) $user->id;
     }
 
     public function publish(): void
