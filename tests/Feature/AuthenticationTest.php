@@ -264,12 +264,67 @@ class AuthenticationTest extends TestCase
         // The token is emailed, never returned in the response.
         $response->assertStatus(200)
             ->assertJsonStructure(['message'])
-            ->assertJsonMissingPath('token');
+            ->assertJsonMissingPath('token')
+            ->assertJsonMissingPath('dev_token');
 
         $this->assertDatabaseHas('password_reset_tokens', [
             'email' => 'reset@example.com',
         ]);
         Notification::assertSentTo($user, PasswordResetTokenNotification::class);
+    }
+
+    public function test_reset_token_is_not_returned_in_local_without_opt_in(): void
+    {
+        Notification::fake();
+        $this->app['env'] = 'local';
+        config(['app.reset_token_in_response' => false]);
+
+        User::factory()->create(['email' => 'no-opt-in@example.com']);
+
+        $this->postJson('/api/forgot-password', ['email' => 'no-opt-in@example.com'])
+            ->assertStatus(200)
+            ->assertJsonMissingPath('dev_token');
+    }
+
+    public function test_reset_token_is_never_returned_in_production(): void
+    {
+        Notification::fake();
+        $this->app['env'] = 'production';
+        config(['app.reset_token_in_response' => true]);
+
+        User::factory()->create(['email' => 'prod-reset@example.com']);
+
+        $this->postJson('/api/forgot-password', ['email' => 'prod-reset@example.com'])
+            ->assertStatus(200)
+            ->assertJsonMissingPath('dev_token');
+    }
+
+    public function test_opt_in_returns_usable_reset_token(): void
+    {
+        Notification::fake();
+        $this->app['env'] = 'local';
+        config(['app.reset_token_in_response' => true]);
+
+        User::create([
+            'name' => 'Local Reset User',
+            'email' => 'local-reset@example.com',
+            'password' => 'password',
+            'role' => 'teacher',
+            'email_verified_at' => now(),
+        ]);
+
+        $token = $this->postJson('/api/forgot-password', [
+            'email' => 'local-reset@example.com',
+        ])->assertStatus(200)->json('dev_token');
+
+        $this->assertNotEmpty($token);
+
+        $this->postJson('/api/reset-password', [
+            'email' => 'local-reset@example.com',
+            'token' => $token,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertStatus(200);
     }
 
     public function test_user_can_reset_password_with_valid_token(): void

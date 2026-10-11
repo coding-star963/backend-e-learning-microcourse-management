@@ -95,9 +95,17 @@ class AuthController extends Controller
             ]
         );
 
-        // The token is only sent by email; returning it would let anyone reset any account.
         \App\Models\User::where('email', $request->email)->firstOrFail()
             ->notify(new \App\Notifications\PasswordResetTokenNotification($token));
+
+        // Opt-in for local demos without a real mailbox (RESET_TOKEN_IN_RESPONSE=true).
+        // Never in production: returning the token would let anyone reset any account.
+        if (config('app.reset_token_in_response') && ! app()->environment('production')) {
+            return response()->json([
+                'message' => 'Demo mode: use the reset token below to reset your password.',
+                'dev_token' => $token,
+            ]);
+        }
 
         return response()->json([
             'message' => 'Password reset instructions have been sent to your email address.',
