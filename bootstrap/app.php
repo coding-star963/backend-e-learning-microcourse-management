@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        // The Vite dev server (and ngrok behind it) proxies /api and /storage
+        // from 127.0.0.1. Trust its X-Forwarded-* headers so asset() builds
+        // file URLs with the public host (e.g. https://xxx.ngrok-free.app).
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,

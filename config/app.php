@@ -126,17 +126,4 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Return Password Reset Token In Response
-    |--------------------------------------------------------------------------
-    |
-    | For local demos without a real mailbox: when enabled, the forgot-password
-    | endpoint also returns the reset token. Off by default and always ignored
-    | in production, since it would let anyone reset any account.
-    |
-    */
-
-    'reset_token_in_response' => (bool) env('RESET_TOKEN_IN_RESPONSE', false),
-
 ];

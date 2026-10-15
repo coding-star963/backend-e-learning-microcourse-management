@@ -77,12 +77,17 @@ class AuthController extends Controller
     }
 
     /**
-     * Send a password reset link / token.
+     * Password recovery, step 1: confirm the email belongs to an account.
+     *
+     * No email or OTP is used. When the email exists, a short-lived reset token
+     * is returned so the app can go straight to the "new password" step.
      */
     public function forgotPassword(Request $request): JsonResponse
     {
         $request->validate([
             'email' => 'required|email|exists:users,email',
+        ], [
+            'email.exists' => 'No account found with that email address.',
         ]);
 
         $token = \Illuminate\Support\Str::random(60);
@@ -95,20 +100,9 @@ class AuthController extends Controller
             ]
         );
 
-        \App\Models\User::where('email', $request->email)->firstOrFail()
-            ->notify(new \App\Notifications\PasswordResetTokenNotification($token));
-
-        // Opt-in for local demos without a real mailbox (RESET_TOKEN_IN_RESPONSE=true).
-        // Never in production: returning the token would let anyone reset any account.
-        if (config('app.reset_token_in_response') && ! app()->environment('production')) {
-            return response()->json([
-                'message' => 'Demo mode: use the reset token below to reset your password.',
-                'dev_token' => $token,
-            ]);
-        }
-
         return response()->json([
-            'message' => 'Password reset instructions have been sent to your email address.',
+            'message' => 'Email verified. You can now set a new password.',
+            'reset_token' => $token,
         ]);
     }
 
@@ -133,15 +127,15 @@ class AuthController extends Controller
             ]);
         }
 
-        $isExpired = \Illuminate\Support\Carbon::parse($record->created_at)->addMinutes(60)->isPast();
+        $isExpired = \Illuminate\Support\Carbon::parse($record->created_at)->addMinutes(15)->isPast();
         if ($isExpired) {
             \Illuminate\Support\Facades\DB::table('password_reset_tokens')->where('email', $request->email)->delete();
             throw ValidationException::withMessages([
-                'token' => ['This password reset token has expired.'],
+                'token' => ['This reset request has expired. Please enter your email again.'],
             ]);
         }
 
-        if (!\Illuminate\Support\Facades\Hash::check($request->token, $record->token) && $request->token !== $record->token) {
+        if (! \Illuminate\Support\Facades\Hash::check($request->token, $record->token)) {
             throw ValidationException::withMessages([
                 'token' => ['The provided password reset token is invalid.'],
             ]);
