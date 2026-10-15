@@ -61,7 +61,7 @@ class CourseController extends Controller
             'duration' => 'nullable|string|max:50',
             'teacher_id' => ['nullable', Rule::exists('users', 'id')->where('role', User::ROLE_TEACHER)],
             'section' => 'nullable|string|max:100',
-            'thumbnail' => 'nullable|image|max:2048',
+            'thumbnail' => 'nullable|image|max:10240',
             'status' => 'sometimes|in:draft,published,archived',
         ]);
 
@@ -105,7 +105,7 @@ class CourseController extends Controller
             'duration' => 'nullable|string|max:50',
             'teacher_id' => ['nullable', Rule::exists('users', 'id')->where('role', User::ROLE_TEACHER)],
             'section' => 'nullable|string|max:100',
-            'thumbnail' => 'nullable|image|max:2048',
+            'thumbnail' => 'nullable|image|max:10240',
             'status' => 'sometimes|in:draft,published,archived',
         ]);
 
