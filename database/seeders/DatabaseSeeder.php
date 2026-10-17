@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
         // Create administrator
         $admin = User::create([
             'name' => 'Admin User',
-            'email' => 'admin@example.com',
+            'email' => 'admin.microlearn@gmail.com',
             'password' => 'password',
             'role' => 'administrator',
             'email_verified_at' => now(),
@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
         // Create teachers
         $teacher1 = User::create([
             'name' => 'Sarah Johnson',
-            'email' => 'teacher@example.com',
+            'email' => 'sarah.johnson@gmail.com',
             'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
@@ -35,7 +35,7 @@ class DatabaseSeeder extends Seeder
 
         $teacher2 = User::create([
             'name' => 'Michael Chen',
-            'email' => 'michael@example.com',
+            'email' => 'michael.chen@gmail.com',
             'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
@@ -43,7 +43,7 @@ class DatabaseSeeder extends Seeder
 
         $teacher3 = User::create([
             'name' => 'Emily Davis',
-            'email' => 'emily@example.com',
+            'email' => 'emily.davis@gmail.com',
             'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
