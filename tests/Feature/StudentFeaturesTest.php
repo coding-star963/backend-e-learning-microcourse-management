@@ -9,6 +9,7 @@ use App\Models\Lesson;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class StudentFeaturesTest extends TestCase
@@ -115,6 +116,7 @@ class StudentFeaturesTest extends TestCase
 
     public function test_adding_a_resource_posts_a_course_update(): void
     {
+        Storage::fake('public');
         $lesson = $this->lesson();
         $file = UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf');
 

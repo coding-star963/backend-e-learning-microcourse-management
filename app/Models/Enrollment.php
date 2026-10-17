@@ -104,6 +104,38 @@ class Enrollment extends Model
         $this->update(['status' => self::STATUS_ACTIVE]);
     }
 
+    /**
+     * Recompute progress from the course's published lessons, and move the
+     * status between active and completed to match. $touch also records the
+     * visit (false for background refreshes, e.g. a teacher publishing a lesson).
+     */
+    public function recalculateProgress(bool $touch = true): void
+    {
+        $lessonIds = $this->course->publishedLessons()->pluck('id');
+        $total = $lessonIds->count();
+        $completed = $total === 0 ? 0 : LessonProgress::where('user_id', $this->user_id)
+            ->whereIn('lesson_id', $lessonIds)
+            ->where('completed', true)
+            ->count();
+        $progress = $total > 0 ? round(($completed / $total) * 100, 2) : 0;
+
+        $attributes = ['progress' => $progress];
+        if ($touch) {
+            $attributes['last_accessed_at'] = now();
+        }
+
+        if ($total > 0 && $progress >= 100 && $this->status === self::STATUS_ACTIVE) {
+            $attributes['status'] = self::STATUS_COMPLETED;
+            $attributes['completed_at'] = now();
+        } elseif ($total > 0 && $progress < 100 && $this->status === self::STATUS_COMPLETED) {
+            // A lesson was added or marked incomplete, so the course is no longer finished.
+            $attributes['status'] = self::STATUS_ACTIVE;
+            $attributes['completed_at'] = null;
+        }
+
+        $this->update($attributes);
+    }
+
     public function updateProgress(float $progress): void
     {
         $this->update([

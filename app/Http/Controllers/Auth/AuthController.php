@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\User;
+use App\Rules\GmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -50,6 +52,37 @@ class AuthController extends Controller
             'user' => new UserResource($user),
             'token' => $token,
         ]);
+    }
+
+    /**
+     * Student self-registration (mobile app). Always creates a student
+     * account with a Gmail address, then signs it in like login().
+     */
+    public function register(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'email', 'max:255', 'unique:users,email', new GmailAddress],
+            'password' => 'required|string|min:8|confirmed',
+        ], [
+            'email.unique' => 'An account with this email already exists.',
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => strtolower(trim($validated['email'])),
+            'password' => $validated['password'],
+            'role' => User::ROLE_STUDENT,
+            'is_active' => true,
+        ]);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'user' => new UserResource($user),
+            'token' => $token,
+            'message' => 'Account created successfully.',
+        ], 201);
     }
 
     /**

@@ -150,7 +150,9 @@ class AnnouncementController extends Controller
 
     public function notificationHistory(Request $request): AnonymousResourceCollection
     {
+        // Teachers only see general notices and those for their own courses.
         $query = Announcement::with(['user', 'course'])
+            ->visibleTo($request->user())
             ->where('is_published', true);
 
         if ($request->has('type') && in_array($request->type, ['general', 'course_update', 'important'])) {

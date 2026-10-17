@@ -9,6 +9,9 @@ class LessonResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // Set by LessonController for students who cannot open this lesson yet.
+        $mediaLocked = (bool) ($this->resource->getAttributes()['media_locked'] ?? false);
+
         return [
             'id' => $this->id,
             'course_id' => $this->course_id,
@@ -20,8 +23,8 @@ class LessonResource extends JsonResource
             // Whether students can open the lesson right now (4.6).
             'is_available' => $this->resource->isAvailable(),
             'order' => $this->order,
-            'video_url' => $this->video_url,
-            'audio_url' => $this->audio_url,
+            'video_url' => $mediaLocked ? null : $this->video_url,
+            'audio_url' => $mediaLocked ? null : $this->audio_url,
             'video_type' => $this->video_type,
             'audio_type' => $this->audio_type,
             'video_size' => $this->video_size,
@@ -34,7 +37,7 @@ class LessonResource extends JsonResource
                 array_key_exists('is_completed', $this->resource->getAttributes()),
                 fn () => (bool) $this->resource->getAttribute('is_completed'),
             ),
-            'resources' => LessonResourceResource::collection($this->whenLoaded('resources')),
+            'resources' => $mediaLocked ? [] : LessonResourceResource::collection($this->whenLoaded('resources')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

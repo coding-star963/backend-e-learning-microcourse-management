@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Progress;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LessonProgressResource;
+use App\Http\Resources\UserResource;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Lesson;
@@ -15,6 +16,37 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ProgressController extends Controller
 {
+    /**
+     * Students whose progress the viewer may monitor: every student for an
+     * administrator, only students enrolled in their own courses for a teacher.
+     */
+    public function students(Request $request): AnonymousResourceCollection
+    {
+        $viewer = $request->user();
+        $query = User::where('role', User::ROLE_STUDENT);
+
+        if ($viewer->isTeacher()) {
+            $query->whereHas('enrollments', fn ($q) => $q->whereIn(
+                'course_id',
+                Course::where('teacher_id', $viewer->id)->select('id')
+            ));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = min((int) $request->get('per_page', 15), 100);
+
+        return UserResource::collection(
+            $query->orderBy('name')->paginate($perPage > 0 ? $perPage : 15)
+        );
+    }
+
     public function studentProgress(Request $request, User $user): array
     {
         $courseIds = $this->allowedCourseIds($request->user(), $user);
@@ -328,45 +360,12 @@ class ProgressController extends Controller
             $progress->updateWatchDuration($validated['watch_duration_seconds']);
         }
 
-        $this->recalculateEnrollmentProgress($enrollment);
+        $enrollment->recalculateProgress();
 
         return response()->json([
             'progress' => new LessonProgressResource($progress->fresh()->load(['lesson', 'enrollment'])),
             'message' => $completed ? 'Lesson marked as completed.' : 'Lesson marked as incomplete.',
         ]);
-    }
-
-    private function recalculateEnrollmentProgress(Enrollment $enrollment): void
-    {
-        $lessonIds = $enrollment->course->publishedLessons()->pluck('id');
-        $totalLessons = $lessonIds->count();
-
-        if ($totalLessons === 0) {
-            $enrollment->updateProgress(0);
-            return;
-        }
-
-        $completedLessons = LessonProgress::where('user_id', $enrollment->user_id)
-            ->whereIn('lesson_id', $lessonIds)
-            ->where('completed', true)
-            ->count();
-
-        $progress = round(($completedLessons / $totalLessons) * 100, 2);
-
-        $enrollment->update([
-            'progress' => $progress,
-            'last_accessed_at' => now(),
-        ]);
-
-        if ($progress >= 100 && $enrollment->status === Enrollment::STATUS_ACTIVE) {
-            $enrollment->complete();
-        } elseif ($progress < 100 && $enrollment->status === Enrollment::STATUS_COMPLETED) {
-            // A lesson was marked incomplete again, so the course is no longer finished.
-            $enrollment->update([
-                'status' => Enrollment::STATUS_ACTIVE,
-                'completed_at' => null,
-            ]);
-        }
     }
 
     /**

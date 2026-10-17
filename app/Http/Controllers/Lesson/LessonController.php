@@ -7,6 +7,7 @@ use App\Http\Resources\LessonResource;
 use App\Http\Resources\LessonResourceResource;
 use App\Models\Announcement;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,7 @@ class LessonController extends Controller
 
         if ($user->isStudent()) {
             $this->attachCompletion($lessons->getCollection(), $user->id);
+            $this->lockUnavailableMedia($lessons->getCollection(), $course, $user->id);
         }
 
         return LessonResource::collection($lessons);
@@ -78,6 +80,7 @@ class LessonController extends Controller
 
         if ($lesson->isPublished()) {
             $this->announceNewLesson($request, $course, $lesson);
+            $course->refreshEnrollmentProgress();
         }
 
         return response()->json([
@@ -99,6 +102,7 @@ class LessonController extends Controller
 
         if ($user->isStudent()) {
             $this->attachCompletion(collect([$lesson]), $user->id);
+            $this->lockUnavailableMedia(collect([$lesson]), $course, $user->id);
         }
 
         return new LessonResource($lesson);
@@ -146,6 +150,9 @@ class LessonController extends Controller
         if (! $wasPublished && $lesson->isPublished()) {
             $this->announceNewLesson($request, $course, $lesson);
         }
+        if ($wasPublished !== $lesson->isPublished()) {
+            $course->refreshEnrollmentProgress();
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -167,7 +174,12 @@ class LessonController extends Controller
             Storage::disk('public')->delete($resource->file_path);
         }
 
+        $wasPublished = $lesson->isPublished();
         $lesson->delete();
+
+        if ($wasPublished) {
+            $course->refreshEnrollmentProgress();
+        }
 
         return response()->json([
             'message' => 'Lesson deleted successfully.',
@@ -183,6 +195,7 @@ class LessonController extends Controller
 
         if (! $wasPublished) {
             $this->announceNewLesson($request, $course, $lesson);
+            $course->refreshEnrollmentProgress();
         }
 
         return response()->json([
@@ -195,7 +208,12 @@ class LessonController extends Controller
     {
         $this->authorizeManage($request, $course);
 
+        $wasPublished = $lesson->isPublished();
         $lesson->unpublish();
+
+        if ($wasPublished) {
+            $course->refreshEnrollmentProgress();
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -207,7 +225,12 @@ class LessonController extends Controller
     {
         $this->authorizeManage($request, $course);
 
+        $wasPublished = $lesson->isPublished();
         $lesson->archive();
+
+        if ($wasPublished) {
+            $course->refreshEnrollmentProgress();
+        }
 
         return response()->json([
             'lesson' => new LessonResource($lesson->fresh()->load('resources')),
@@ -233,6 +256,9 @@ class LessonController extends Controller
 
         if (! $wasPublished && $lesson->isPublished()) {
             $this->announceNewLesson($request, $course, $lesson);
+        }
+        if ($wasPublished !== $lesson->isPublished()) {
+            $course->refreshEnrollmentProgress();
         }
 
         return response()->json([
@@ -380,6 +406,25 @@ class LessonController extends Controller
 
         foreach ($lessons as $lesson) {
             $lesson->setAttribute('is_completed', in_array($lesson->id, $completedIds));
+        }
+    }
+
+    /**
+     * Students only get a lesson's video, audio and files when they can open it:
+     * the lesson is available (not locked or scheduled for later), and they are
+     * actively enrolled or the lesson is a free preview.
+     */
+    private function lockUnavailableMedia($lessons, Course $course, int $userId): void
+    {
+        $enrolled = $course->enrollments()
+            ->where('user_id', $userId)
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->exists();
+
+        foreach ($lessons as $lesson) {
+            if (! $lesson->isAvailable() || (! $enrolled && ! $lesson->is_free_preview)) {
+                $lesson->setAttribute('media_locked', true);
+            }
         }
     }
 

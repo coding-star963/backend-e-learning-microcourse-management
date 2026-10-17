@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Category;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
+use App\Models\Course;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -13,7 +14,15 @@ class CategoryController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Category::withCount('courses');
+        // Count only the courses this user can see: teachers their own, students published ones.
+        $user = $request->user();
+        $query = Category::withCount(['courses' => function ($q) use ($user) {
+            if ($user->isTeacher()) {
+                $q->where('teacher_id', $user->id);
+            } elseif ($user->isStudent()) {
+                $q->where('status', Course::STATUS_PUBLISHED);
+            }
+        }]);
 
         if ($request->filled('search')) {
             $search = $request->search;

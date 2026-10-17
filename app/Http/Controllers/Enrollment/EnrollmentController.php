@@ -8,6 +8,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\User;
+use App\Rules\GmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -61,7 +62,7 @@ class EnrollmentController extends Controller
             'course_id' => 'required|exists:courses,id',
             'user_id' => ['required_without:name', 'nullable', Rule::exists('users', 'id')->where('role', User::ROLE_STUDENT)],
             'name' => 'required_without:user_id|nullable|string|max:255',
-            'email' => 'required_without:user_id|nullable|email|max:255|unique:users,email',
+            'email' => ['required_without:user_id', 'nullable', 'email', 'max:255', 'unique:users,email', new GmailAddress],
             'password' => 'required_without:user_id|nullable|string|min:8',
         ], [
             'user_id.exists' => 'The selected account is not a student.',
@@ -118,9 +119,15 @@ class EnrollmentController extends Controller
      */
     public function students(Request $request): AnonymousResourceCollection
     {
+        // Teachers only count enrollments in their own courses.
+        $viewer = $request->user();
         $query = User::where('role', User::ROLE_STUDENT)
             ->where('is_active', true)
-            ->withCount('enrollments');
+            ->withCount(['enrollments' => function ($q) use ($viewer) {
+                if ($viewer->isTeacher()) {
+                    $q->whereIn('course_id', Course::where('teacher_id', $viewer->id)->select('id'));
+                }
+            }]);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -292,13 +299,17 @@ class EnrollmentController extends Controller
             ], 422);
         }
 
-        $exists = Enrollment::where('user_id', $student->id)
+        $existing = Enrollment::where('user_id', $student->id)
             ->where('course_id', $course->id)
-            ->exists();
+            ->first();
 
-        if ($exists) {
+        if ($existing) {
+            $blocked = in_array($existing->status, [Enrollment::STATUS_CANCELLED, Enrollment::STATUS_SUSPENDED]);
+
             return response()->json([
-                'message' => 'You are already enrolled in this course.',
+                'message' => $blocked
+                    ? "Your enrollment in this course was {$existing->status}. Please contact your teacher."
+                    : 'You are already enrolled in this course.',
             ], 422);
         }
 

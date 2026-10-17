@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
-// An email alone unlocks the reset, so cap attempts per IP.
+// Sign-up and reset (an email alone unlocks it) are public, so cap attempts per IP.
 Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
@@ -55,8 +56,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::prefix('categories')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
         Route::get('/{category}', [CategoryController::class, 'show']);
-        Route::middleware('role:administrator,teacher')->group(function () {
-            Route::post('/', [CategoryController::class, 'store']);
+        Route::middleware('role:administrator,teacher')->post('/', [CategoryController::class, 'store']);
+        // Categories are shared by every teacher's courses, so only administrators change or remove them.
+        Route::middleware('role:administrator')->group(function () {
             Route::put('/{category}', [CategoryController::class, 'update']);
             Route::delete('/{category}', [CategoryController::class, 'destroy']);
         });
@@ -123,6 +125,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/enrollment/{enrollment}', [ProgressController::class, 'enrollmentProgress']);
         Route::get('/history/{user}', [ProgressController::class, 'learningHistory']);
         Route::middleware('role:administrator,teacher')->group(function () {
+            Route::get('/students', [ProgressController::class, 'students']);
             Route::get('/course/{course}', [ProgressController::class, 'courseProgress']);
             Route::get('/course/{course}/summary', [ProgressController::class, 'courseProgressSummary']);
         });

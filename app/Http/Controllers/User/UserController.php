@@ -5,9 +5,11 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Rules\GmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -48,7 +50,10 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
+            'email' => [
+                'required', 'email', 'max:255', 'unique:users,email',
+                Rule::when($request->input('role') === User::ROLE_STUDENT, [new GmailAddress]),
+            ],
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|in:administrator,teacher,student',
         ]);
@@ -86,11 +91,26 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
+        // A student's new email must be a Gmail address.
+        $isStudent = $request->input('role', $user->role) === User::ROLE_STUDENT;
+        $changesEmail = $request->filled('email')
+            && strcasecmp(trim((string) $request->email), $user->email) !== 0;
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|max:255|unique:users,email,' . $user->id,
+            'email' => [
+                'sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id,
+                Rule::when($isStudent && $changesEmail, [new GmailAddress]),
+            ],
             'role' => 'sometimes|in:administrator,teacher,student',
         ]);
+
+        // An administrator demoting themself would lock them out of user management.
+        if (isset($validated['role']) && $validated['role'] !== $user->role && $user->id === $request->user()->id) {
+            return response()->json([
+                'message' => 'You cannot change your own role.',
+            ], 422);
+        }
 
         $user->update($validated);
 

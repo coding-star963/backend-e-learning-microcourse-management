@@ -125,6 +125,32 @@ class AccessControlTest extends TestCase
         $this->assertDatabaseHas('courses', ['id' => $this->course->id, 'status' => 'published']);
     }
 
+    public function test_teacher_cannot_view_another_teachers_course_or_lessons(): void
+    {
+        $this->actingAs($this->otherTeacher);
+
+        $this->getJson("/api/courses/{$this->course->slug}")->assertStatus(403);
+        $this->getJson("/api/courses/{$this->course->slug}/lessons")->assertStatus(403);
+        $this->getJson("/api/courses/{$this->course->slug}/lessons/{$this->lesson->id}")->assertStatus(403);
+    }
+
+    public function test_course_lessons_only_include_that_courses_lessons(): void
+    {
+        Lesson::create([
+            'course_id' => $this->otherCourse->id,
+            'title' => 'Other Lesson',
+            'order' => 1,
+            'status' => 'published',
+            'availability' => 'free',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->getJson("/api/courses/{$this->course->slug}/lessons")
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'Widgets');
+    }
+
     public function test_admin_can_manage_any_course(): void
     {
         $this->actingAs($this->admin)

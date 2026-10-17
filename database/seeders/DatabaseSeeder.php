@@ -171,18 +171,19 @@ class DatabaseSeeder extends Seeder
             }
         }
 
-        // Create students (every seeded student is enrolled in at least one course)
+        // Create students (every seeded student is enrolled in at least one course).
+        // Student accounts must use Gmail addresses, matching the registration rule.
         $students = [];
         $studentData = [
-            ['name' => 'Alex Student', 'email' => 'student@example.com', 'password' => 'password'],
-            ['name' => 'James Wilson', 'email' => 'james@example.com', 'password' => 'password'],
-            ['name' => 'Maria Garcia', 'email' => 'maria@example.com', 'password' => 'password'],
-            ['name' => 'David Kim', 'email' => 'david@example.com', 'password' => 'password'],
-            ['name' => 'Lisa Anderson', 'email' => 'lisa@example.com', 'password' => 'password'],
-            ['name' => 'Robert Taylor', 'email' => 'robert@example.com', 'password' => 'password'],
-            ['name' => 'Jennifer Martinez', 'email' => 'jennifer@example.com', 'password' => 'password'],
-            ['name' => 'Christopher Lee', 'email' => 'chris@example.com', 'password' => 'password'],
-            ['name' => 'Amanda White', 'email' => 'amanda@example.com', 'password' => 'password'],
+            ['name' => 'Alex Student', 'email' => 'alex.student@gmail.com', 'password' => 'password'],
+            ['name' => 'James Wilson', 'email' => 'james.wilson@gmail.com', 'password' => 'password'],
+            ['name' => 'Maria Garcia', 'email' => 'maria.garcia@gmail.com', 'password' => 'password'],
+            ['name' => 'David Kim', 'email' => 'david.kim@gmail.com', 'password' => 'password'],
+            ['name' => 'Lisa Anderson', 'email' => 'lisa.anderson@gmail.com', 'password' => 'password'],
+            ['name' => 'Robert Taylor', 'email' => 'robert.taylor@gmail.com', 'password' => 'password'],
+            ['name' => 'Jennifer Martinez', 'email' => 'jennifer.martinez@gmail.com', 'password' => 'password'],
+            ['name' => 'Christopher Lee', 'email' => 'christopher.lee@gmail.com', 'password' => 'password'],
+            ['name' => 'Amanda White', 'email' => 'amanda.white@gmail.com', 'password' => 'password'],
         ];
 
         foreach ($studentData as $sData) {
@@ -228,20 +229,14 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        // Create lesson progress data
+        // Create lesson progress data (the target percentage above decides how many lessons are done)
         $enrollments = Enrollment::with(['course.lessons'])->get();
         foreach ($enrollments as $enrollment) {
             $lessons = $enrollment->course->lessons;
             if ($lessons->isEmpty()) continue;
 
             $progressPercent = $enrollment->progress / 100;
-            $lessonsToComplete = (int) ceil($lessons->count() * $progressPercent);
-
-            $lessonsToComplete = min($lessonsToComplete, $lessons->count());
-
-            $lessonsToComplete = max(0, $lessonsToComplete);
-
-            $lessonsToComplete = min($lessonsToComplete, $lessons->count());
+            $lessonsToComplete = min($lessons->count(), max(0, (int) ceil($lessons->count() * $progressPercent)));
 
             $lessons->take($lessonsToComplete)->each(function ($lesson) use ($enrollment) {
                 $completedAt = $enrollment->enrolled_at->copy()->addDays(rand(1, 14));
@@ -258,6 +253,9 @@ class DatabaseSeeder extends Seeder
                     'watch_duration_seconds' => $lesson->duration_seconds ?: rand(60, 600),
                 ]);
             });
+
+            // Store the same percentage and status the API computes from completed lessons.
+            $enrollment->recalculateProgress(false);
         }
 
         // Create announcements

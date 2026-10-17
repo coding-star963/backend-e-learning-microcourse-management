@@ -104,11 +104,11 @@ class AdminRevisionsTest extends TestCase
         $this->postJson('/api/enrollments', [
             'course_id' => $course->id,
             'name' => 'New Learner',
-            'email' => 'new@school.com',
+            'email' => 'new.learner@gmail.com',
             'password' => 'password123',
         ])->assertStatus(201);
 
-        $newStudent = User::where('email', 'new@school.com')->first();
+        $newStudent = User::where('email', 'new.learner@gmail.com')->first();
         $this->assertSame('student', $newStudent->role);
         $this->assertDatabaseHas('enrollments', ['user_id' => $newStudent->id, 'course_id' => $course->id]);
     }

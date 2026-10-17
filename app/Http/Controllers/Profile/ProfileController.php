@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Profile;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Rules\GmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
@@ -24,12 +26,19 @@ class ProfileController extends Controller
      */
     public function update(Request $request): JsonResponse
     {
+        $user = $request->user();
+        // Students changing their email must switch to a Gmail address.
+        $changesEmail = $request->filled('email')
+            && strcasecmp(trim((string) $request->email), $user->email) !== 0;
+
         $request->validate([
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|max:255|unique:users,email,' . $request->user()->id,
+            'email' => [
+                'sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id,
+                Rule::when($user->isStudent() && $changesEmail, [new GmailAddress]),
+            ],
         ]);
 
-        $user = $request->user();
         $user->update($request->only('name', 'email'));
 
         return response()->json([

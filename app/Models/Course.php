@@ -119,6 +119,18 @@ class Course extends Model
             ->withTimestamps();
     }
 
+    /**
+     * Keep stored enrollment progress in step after the set of published
+     * lessons changes (lesson published, unpublished, archived or deleted).
+     */
+    public function refreshEnrollmentProgress(): void
+    {
+        $this->enrollments()
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->get()
+            ->each(fn (Enrollment $enrollment) => $enrollment->setRelation('course', $this)->recalculateProgress(false));
+    }
+
     public function enrollmentsCount(): int
     {
         return $this->enrollments()->count();

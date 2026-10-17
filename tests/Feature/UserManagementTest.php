@@ -63,7 +63,7 @@ class UserManagementTest extends TestCase
 
         $response = $this->postJson('/api/users', [
             'name' => 'New Student',
-            'email' => 'student@school.com',
+            'email' => 'new.student@gmail.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => 'student',
@@ -75,7 +75,7 @@ class UserManagementTest extends TestCase
             ]);
 
         $this->assertDatabaseHas('users', [
-            'email' => 'student@school.com',
+            'email' => 'new.student@gmail.com',
             'role' => 'student',
             'is_active' => true,
         ]);

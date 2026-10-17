@@ -140,6 +140,15 @@ class CourseController extends Controller
             Storage::disk('public')->delete($course->thumbnail);
         }
 
+        // Lesson rows cascade with the course; remove their uploaded files too.
+        foreach ($course->lessons()->with('resources')->get() as $lesson) {
+            Storage::disk('public')->delete(array_filter([
+                $lesson->video_path,
+                $lesson->audio_path,
+                ...$lesson->resources->pluck('file_path')->all(),
+            ]));
+        }
+
         $course->delete();
 
         return response()->json([
