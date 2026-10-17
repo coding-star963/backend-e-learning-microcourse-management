@@ -31,6 +31,9 @@ class User extends Authenticatable
     const SUSPENDED_MESSAGE = 'Your account has been suspended. Please contact your teacher or an administrator to have it reactivated.';
     const DEACTIVATED_MESSAGE = 'Your account has been deactivated. Please contact an administrator.';
 
+    // A deactivated account's records are frozen; suspended accounts can still be changed.
+    const FROZEN_MESSAGE = 'This account is deactivated, so its records cannot be changed. Activate the account first.';
+
     /**
      * Get the attributes that should be cast.
      *
@@ -116,6 +119,19 @@ class User extends Authenticatable
             self::ACCOUNT_SUSPENDED => $query->where('is_active', true)->whereNotNull('suspended_at'),
             default => $query->where('is_active', true)->whereNull('suspended_at'),
         };
+    }
+
+    /**
+     * Bring the student's stored progress up to date, e.g. after reactivation
+     * (course changes made while the account was deactivated were skipped).
+     */
+    public function refreshEnrollmentProgress(): void
+    {
+        $this->enrollments()
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->with('course')
+            ->get()
+            ->each(fn (Enrollment $enrollment) => $enrollment->recalculateProgress(false));
     }
 
     /**

@@ -125,8 +125,11 @@ class Course extends Model
      */
     public function refreshEnrollmentProgress(): void
     {
+        // A deactivated student's records are frozen until the account is
+        // activated again (suspended students keep being updated).
         $this->enrollments()
             ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->whereHas('user', fn ($q) => $q->where('is_active', true))
             ->get()
             ->each(fn (Enrollment $enrollment) => $enrollment->setRelation('course', $this)->recalculateProgress(false));
     }

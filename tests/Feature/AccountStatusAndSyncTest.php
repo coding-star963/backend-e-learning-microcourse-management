@@ -156,14 +156,96 @@ class AccountStatusAndSyncTest extends TestCase
             ->assertJsonPath('user.account_status', 'active');
     }
 
-    public function test_suspended_students_cannot_be_enrolled_by_staff(): void
+    public function test_a_suspended_students_records_and_progress_keep_updating(): void
     {
         $this->student->update(['suspended_at' => now()]);
+        $this->actingAs($this->teacher);
 
-        $this->actingAs($this->teacher)->postJson('/api/enrollments', [
+        $enrollmentId = $this->postJson('/api/enrollments', [
             'user_id' => $this->student->id,
             'course_id' => $this->course->id,
+        ])->assertCreated()->json('enrollment.id');
+        $enrollment = Enrollment::find($enrollmentId);
+        LessonProgress::create([
+            'user_id' => $this->student->id,
+            'lesson_id' => $this->lesson->id,
+            'enrollment_id' => $enrollmentId,
+            'completed' => true,
+            'completed_at' => now(),
+        ]);
+        $enrollment->recalculateProgress(false);
+        $this->assertEquals(100, $enrollment->fresh()->progress);
+
+        // A new lesson is published: the suspended student's progress is recalculated.
+        $this->postJson("/api/courses/{$this->course->slug}/lessons", [
+            'title' => 'Navigation', 'status' => 'published',
+        ])->assertCreated();
+        $this->assertEquals(50, $enrollment->fresh()->progress);
+
+        $this->putJson("/api/enrollments/{$enrollmentId}", ['status' => 'suspended'])->assertOk();
+    }
+
+    public function test_a_deactivated_students_records_are_frozen_until_reactivated(): void
+    {
+        $enrollment = $this->enroll($this->student);
+        LessonProgress::create([
+            'user_id' => $this->student->id,
+            'lesson_id' => $this->lesson->id,
+            'enrollment_id' => $enrollment->id,
+            'completed' => true,
+            'completed_at' => now(),
+        ]);
+        $enrollment->recalculateProgress(false);
+        $this->student->update(['is_active' => false]);
+
+        // Staff cannot change the student's account or enrollments.
+        $this->actingAs($this->admin);
+        $this->putJson("/api/users/{$this->student->id}", ['name' => 'Renamed'])
+            ->assertStatus(422)->assertJsonPath('message', User::FROZEN_MESSAGE);
+        $this->putJson("/api/enrollments/{$enrollment->id}", ['status' => 'cancelled'])->assertStatus(422);
+        $this->deleteJson("/api/enrollments/{$enrollment->id}")->assertStatus(422);
+        $this->putJson("/api/lessons/{$this->lesson->id}/progress", [
+            'completed' => false, 'enrollment_id' => $enrollment->id,
         ])->assertStatus(422);
+
+        $this->actingAs($this->teacher);
+        $other = Course::create([
+            'teacher_id' => $this->teacher->id, 'title' => 'Dart', 'status' => 'published',
+            'is_published' => true, 'difficulty_level' => 'beginner',
+        ]);
+        $this->postJson('/api/enrollments', ['user_id' => $this->student->id, 'course_id' => $other->id])
+            ->assertStatus(422);
+
+        // Course changes do not touch the frozen record...
+        $this->postJson("/api/courses/{$this->course->slug}/lessons", [
+            'title' => 'Navigation', 'status' => 'published',
+        ])->assertCreated();
+        $this->assertEquals(100, $enrollment->fresh()->progress);
+        $this->assertSame('completed', $enrollment->fresh()->status);
+
+        // ...until the account is activated again; then updates resume.
+        $this->actingAs($this->admin)->postJson("/api/users/{$this->student->id}/toggle-status")
+            ->assertJsonPath('user.account_status', 'active');
+        $this->assertEquals(50, $enrollment->fresh()->progress);
+        $this->assertSame('active', $enrollment->fresh()->status, 'The new lesson reopens the course.');
+        $this->putJson("/api/users/{$this->student->id}", ['name' => 'Renamed'])->assertOk();
+    }
+
+    public function test_a_deactivated_teacher_cannot_be_edited_but_a_suspended_one_can(): void
+    {
+        $this->actingAs($this->admin);
+
+        $this->teacher->update(['suspended_at' => now()]);
+        $this->putJson("/api/users/{$this->teacher->id}", ['name' => 'Suspended Teacher'])->assertOk();
+
+        $this->postJson("/api/users/{$this->teacher->id}/toggle-status")
+            ->assertJsonPath('user.account_status', 'deactivated');
+        $this->putJson("/api/users/{$this->teacher->id}", ['name' => 'Changed'])
+            ->assertStatus(422)->assertJsonPath('message', User::FROZEN_MESSAGE);
+        $this->assertSame('Suspended Teacher', $this->teacher->fresh()->name);
+
+        $this->postJson("/api/users/{$this->teacher->id}/toggle-status");
+        $this->putJson("/api/users/{$this->teacher->id}", ['name' => 'Changed'])->assertOk();
     }
 
     public function test_users_can_be_filtered_by_account_status(): void

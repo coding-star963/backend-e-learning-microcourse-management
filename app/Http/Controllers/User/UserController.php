@@ -94,6 +94,11 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
+        // A deactivated account (e.g. a teacher) must be activated before it can be edited.
+        if ($user->isInactive()) {
+            return response()->json(['message' => User::FROZEN_MESSAGE], 422);
+        }
+
         // A changed email must be a Gmail address (only Gmail can sign in).
         $changesEmail = $request->filled('email')
             && strcasecmp(trim((string) $request->email), $user->email) !== 0;
@@ -146,6 +151,9 @@ class UserController extends Controller
         // Sign a deactivated user out of the web and mobile apps immediately.
         if (! $user->is_active) {
             $user->tokens()->delete();
+        } elseif ($user->isStudent()) {
+            // Updates resume: catch up on course changes skipped while deactivated.
+            $user->refreshEnrollmentProgress();
         }
 
         $status = $user->is_active ? 'activated' : 'deactivated';

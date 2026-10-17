@@ -76,10 +76,9 @@ class EnrollmentController extends Controller
         );
 
         if (! empty($validated['user_id'])) {
-            if (User::find($validated['user_id'])->accountStatus() !== User::ACCOUNT_ACTIVE) {
-                return response()->json([
-                    'message' => 'This student account is suspended or deactivated. Reactivate it before enrolling the student.',
-                ], 422);
+            // Suspended students can still be enrolled; deactivated ones are frozen.
+            if (User::find($validated['user_id'])->isInactive()) {
+                return response()->json(['message' => User::FROZEN_MESSAGE], 422);
             }
 
             $exists = Enrollment::where('user_id', $validated['user_id'])
@@ -125,8 +124,8 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Student accounts that are not deactivated, with their enrollment counts.
-     * Suspended students are listed (so they can be reactivated) but cannot be enrolled.
+     * Student accounts that are not deactivated (active or suspended), with
+     * their enrollment counts. Deactivated students are frozen.
      */
     public function students(Request $request): AnonymousResourceCollection
     {
@@ -163,6 +162,7 @@ class EnrollmentController extends Controller
     public function update(Request $request, Enrollment $enrollment): JsonResponse
     {
         abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You can only manage enrollments in your own courses.');
+        abort_if($enrollment->user->isInactive(), 422, User::FROZEN_MESSAGE);
 
         $validated = $request->validate([
             'status' => 'sometimes|in:active,completed,cancelled,suspended',
@@ -204,6 +204,7 @@ class EnrollmentController extends Controller
     public function destroy(Request $request, Enrollment $enrollment): JsonResponse
     {
         abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You can only manage enrollments in your own courses.');
+        abort_if($enrollment->user->isInactive(), 422, User::FROZEN_MESSAGE);
 
         // The enrollment's lesson progress is removed with it (cascade), so the
         // student can enroll again from scratch.

@@ -334,6 +334,11 @@ class ProgressController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
+        // An administrator cannot record progress for a deactivated student.
+        if ($enrollment->user->isInactive()) {
+            return response()->json(['message' => User::FROZEN_MESSAGE], 422);
+        }
+
         if ((int) $lesson->course_id !== (int) $enrollment->course_id) {
             return response()->json(['message' => 'This lesson does not belong to the enrolled course.'], 422);
         }
