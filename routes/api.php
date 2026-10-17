@@ -7,6 +7,8 @@ use App\Http\Controllers\Course\CourseController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Enrollment\EnrollmentController;
 use App\Http\Controllers\Lesson\LessonController;
+use App\Http\Controllers\Notification\NotificationController;
+use App\Http\Controllers\Sync\SyncController;
 use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\Teacher\TeacherController;
@@ -28,6 +30,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
 
+    // Live sync: a cheap change marker the web portal and mobile app poll.
+    Route::get('/sync', [SyncController::class, 'show']);
+
+    // The signed-in user's personal notices (e.g. enrollment changes).
+    Route::get('/notifications', [NotificationController::class, 'index']);
+
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
@@ -38,6 +46,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/{user}', [UserController::class, 'show']);
         Route::put('/{user}', [UserController::class, 'update']);
         Route::post('/{user}/toggle-status', [UserController::class, 'toggleStatus']);
+    });
+
+    // Account suspension: administrators for any other account, teachers for
+    // students in their own courses (checked in the controller).
+    Route::middleware('role:administrator,teacher')->prefix('users')->group(function () {
+        Route::post('/{user}/suspend', [UserController::class, 'suspend']);
+        Route::post('/{user}/unsuspend', [UserController::class, 'unsuspend']);
     });
 
     // Teacher management (administrator only)

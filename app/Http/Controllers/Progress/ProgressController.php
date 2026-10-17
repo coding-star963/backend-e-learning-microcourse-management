@@ -95,7 +95,9 @@ class ProgressController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'role' => $user->role,
                 'profile_photo' => $user->profile_photo_url,
+                'account_status' => $user->accountStatus(),
             ],
             'summary' => [
                 'total_courses' => $totalCourses,

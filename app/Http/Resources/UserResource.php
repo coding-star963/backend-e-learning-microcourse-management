@@ -20,6 +20,8 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'role' => $this->role,
             'is_active' => $this->is_active,
+            'account_status' => $this->accountStatus(),
+            'suspended_at' => $this->suspended_at,
             'profile_photo' => $this->profile_photo_url,
             'enrollments_count' => $this->whenCounted('enrollments'),
             'created_at' => $this->created_at,

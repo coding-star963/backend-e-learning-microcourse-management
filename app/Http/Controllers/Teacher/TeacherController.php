@@ -19,7 +19,7 @@ class TeacherController extends Controller
         $query = User::where('role', User::ROLE_TEACHER)->withCount('courses');
 
         if ($request->boolean('active_only')) {
-            $query->where('is_active', true);
+            $query->withAccountStatus(User::ACCOUNT_ACTIVE);
         }
 
         if ($request->filled('search')) {
@@ -35,6 +35,7 @@ class TeacherController extends Controller
             'name' => $teacher->name,
             'email' => $teacher->email,
             'is_active' => $teacher->is_active,
+            'account_status' => $teacher->accountStatus(),
             'profile_photo' => $teacher->profile_photo_url,
             'courses_count' => $teacher->courses_count,
             'created_at' => $teacher->created_at,

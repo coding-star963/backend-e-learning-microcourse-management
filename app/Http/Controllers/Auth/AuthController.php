@@ -19,7 +19,7 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $request->validate([
-            'email' => 'required|email',
+            'email' => ['required', 'email', new GmailAddress],
             'password' => 'required',
         ]);
 
@@ -42,7 +42,14 @@ class AuthController extends Controller
         if (!$user->isActive()) {
             Auth::logout();
             throw ValidationException::withMessages([
-                'email' => ['Your account has been deactivated. Please contact an administrator.'],
+                'email' => [User::DEACTIVATED_MESSAGE],
+            ]);
+        }
+
+        if ($user->isSuspended()) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'email' => [User::SUSPENDED_MESSAGE],
             ]);
         }
 

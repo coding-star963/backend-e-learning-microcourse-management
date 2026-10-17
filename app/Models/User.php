@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'is_active', 'profile_photo'])]
+#[Fillable(['name', 'email', 'password', 'role', 'is_active', 'suspended_at', 'profile_photo'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -21,6 +22,14 @@ class User extends Authenticatable
     const ROLE_ADMINISTRATOR = 'administrator';
     const ROLE_TEACHER = 'teacher';
     const ROLE_STUDENT = 'student';
+
+    // Account status: deactivated (is_active = false) wins over suspended (suspended_at set).
+    const ACCOUNT_ACTIVE = 'active';
+    const ACCOUNT_SUSPENDED = 'suspended';
+    const ACCOUNT_DEACTIVATED = 'deactivated';
+
+    const SUSPENDED_MESSAGE = 'Your account has been suspended. Please contact your teacher or an administrator to have it reactivated.';
+    const DEACTIVATED_MESSAGE = 'Your account has been deactivated. Please contact an administrator.';
 
     /**
      * Get the attributes that should be cast.
@@ -33,6 +42,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'suspended_at' => 'datetime',
         ];
     }
 
@@ -74,6 +84,48 @@ class User extends Authenticatable
     public function isInactive(): bool
     {
         return $this->is_active === false;
+    }
+
+    /**
+     * Check if user account is suspended (and not deactivated).
+     */
+    public function isSuspended(): bool
+    {
+        return $this->is_active !== false && $this->suspended_at !== null;
+    }
+
+    /**
+     * active, suspended or deactivated.
+     */
+    public function accountStatus(): string
+    {
+        if ($this->isInactive()) {
+            return self::ACCOUNT_DEACTIVATED;
+        }
+
+        return $this->suspended_at !== null ? self::ACCOUNT_SUSPENDED : self::ACCOUNT_ACTIVE;
+    }
+
+    /**
+     * Filter users by account status (active, suspended or deactivated).
+     */
+    public function scopeWithAccountStatus(Builder $query, string $status): void
+    {
+        match ($status) {
+            self::ACCOUNT_DEACTIVATED => $query->where('is_active', false),
+            self::ACCOUNT_SUSPENDED => $query->where('is_active', true)->whereNotNull('suspended_at'),
+            default => $query->where('is_active', true)->whereNull('suspended_at'),
+        };
+    }
+
+    /**
+     * Teachers manage the students enrolled in their own courses.
+     */
+    public function isStudentOf(User $teacher): bool
+    {
+        return $this->isStudent() && $this->enrollments()
+            ->whereIn('course_id', Course::where('teacher_id', $teacher->id)->select('id'))
+            ->exists();
     }
 
     public function courses(): HasMany

@@ -83,25 +83,40 @@ class StudentRegistrationTest extends TestCase
 
     // --- Web forms that create or edit student accounts --------------------
 
-    public function test_admin_must_use_gmail_for_new_students_but_not_staff(): void
+    public function test_admin_must_use_gmail_for_new_accounts_of_every_role(): void
     {
         $this->actingAs($this->makeUser('admin@school.com', 'administrator'));
 
-        $this->postJson('/api/users', [
-            'name' => 'Student',
-            'email' => 'student@school.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'role' => 'student',
-        ])->assertStatus(422)->assertJsonValidationErrors(['email']);
+        foreach (['student', 'teacher', 'administrator'] as $role) {
+            $this->postJson('/api/users', [
+                'name' => ucfirst($role),
+                'email' => "{$role}@school.com",
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+                'role' => $role,
+            ])->assertStatus(422)
+                ->assertJsonPath('errors.email.0', 'Only Gmail addresses (ending in @gmail.com) are allowed.');
 
-        $this->postJson('/api/users', [
-            'name' => 'Teacher',
-            'email' => 'teacher@school.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'role' => 'teacher',
-        ])->assertStatus(201);
+            $this->postJson('/api/users', [
+                'name' => ucfirst($role),
+                'email' => "new.{$role}@gmail.com",
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+                'role' => $role,
+            ])->assertStatus(201);
+        }
+    }
+
+    public function test_admin_cannot_change_a_teachers_email_to_non_gmail(): void
+    {
+        $this->actingAs($this->makeUser('admin@gmail.com', 'administrator'));
+        $teacher = $this->makeUser('teacher@gmail.com', 'teacher');
+
+        $this->putJson("/api/users/{$teacher->id}", ['email' => 'teacher@school.com'])
+            ->assertStatus(422)->assertJsonValidationErrors(['email']);
+
+        $this->putJson("/api/users/{$teacher->id}", ['email' => 'renamed.teacher@gmail.com'])
+            ->assertStatus(200);
     }
 
     public function test_admin_cannot_change_a_students_email_to_non_gmail(): void
@@ -160,10 +175,28 @@ class StudentRegistrationTest extends TestCase
             ->assertStatus(200);
     }
 
-    public function test_teacher_profile_email_is_not_restricted_to_gmail(): void
+    public function test_teacher_profile_email_changes_must_be_gmail(): void
     {
-        $this->actingAs($this->makeUser('teacher@school.com', 'teacher'));
+        $this->actingAs($this->makeUser('teacher@gmail.com', 'teacher'));
 
-        $this->putJson('/api/profile', ['email' => 'teacher@deped.gov.ph'])->assertStatus(200);
+        $this->putJson('/api/profile', ['email' => 'teacher@deped.gov.ph'])
+            ->assertStatus(422)->assertJsonValidationErrors(['email']);
+
+        $this->putJson('/api/profile', ['email' => 'teacher.new@gmail.com'])->assertStatus(200);
+    }
+
+    // --- Sign-in (web and mobile use the same endpoint) ---------------------
+
+    public function test_only_gmail_addresses_can_sign_in(): void
+    {
+        $this->makeUser('legacy@school.com', 'teacher');
+        $this->makeUser('teacher@gmail.com', 'teacher');
+
+        $this->postJson('/api/login', ['email' => 'legacy@school.com', 'password' => 'password'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', 'Only Gmail addresses (ending in @gmail.com) are allowed.');
+
+        $this->postJson('/api/login', ['email' => 'teacher@gmail.com', 'password' => 'password'])
+            ->assertStatus(200);
     }
 }

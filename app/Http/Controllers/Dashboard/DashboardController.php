@@ -103,10 +103,29 @@ class DashboardController extends Controller
                 'total_lessons' => $totalLessons,
                 'total_announcements' => $totalAnnouncements,
             ],
+            // Every student and teacher account, by account status.
+            'account_stats' => [
+                'students' => $this->accountStats(User::where('role', User::ROLE_STUDENT)),
+                'teachers' => $this->accountStats(User::where('role', User::ROLE_TEACHER)),
+            ],
             'recent_courses' => $recentCourses,
             'recent_enrollments' => $recentEnrollments,
             'recent_announcements' => $recentAnnouncements,
         ];
+    }
+
+    /**
+     * Total, active, suspended and deactivated accounts in the query.
+     */
+    private function accountStats($query): array
+    {
+        $stats = ['total' => (clone $query)->count()];
+
+        foreach ([User::ACCOUNT_ACTIVE, User::ACCOUNT_SUSPENDED, User::ACCOUNT_DEACTIVATED] as $status) {
+            $stats[$status] = (clone $query)->withAccountStatus($status)->count();
+        }
+
+        return $stats;
     }
 
     private function teacherDashboard(User $teacher): array
@@ -183,6 +202,11 @@ class DashboardController extends Controller
                 'average_progress' => round($averageProgress, 1),
                 'total_lessons' => $totalLessons,
                 'total_students' => $totalStudents,
+            ],
+            // The students enrolled in this teacher's courses, by account status.
+            'account_stats' => [
+                'students' => $this->accountStats(User::where('role', User::ROLE_STUDENT)
+                    ->whereHas('enrollments', fn ($q) => $q->whereIn('course_id', $courseIds))),
             ],
             'recent_courses' => $recentCourses,
             'recent_enrollments' => $recentEnrollments,

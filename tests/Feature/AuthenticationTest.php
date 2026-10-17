@@ -15,14 +15,14 @@ class AuthenticationTest extends TestCase
     {
         $user = User::create([
             'name' => 'Admin',
-            'email' => 'admin@example.com',
+            'email' => 'admin@gmail.com',
             'password' => 'password',
             'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'admin@example.com',
+            'email' => 'admin@gmail.com',
             'password' => 'password',
         ]);
 
@@ -39,14 +39,14 @@ class AuthenticationTest extends TestCase
     {
         $user = User::create([
             'name' => 'Teacher',
-            'email' => 'teacher@example.com',
+            'email' => 'teacher@gmail.com',
             'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'teacher@example.com',
+            'email' => 'teacher@gmail.com',
             'password' => 'password',
         ]);
 
@@ -63,14 +63,14 @@ class AuthenticationTest extends TestCase
     {
         User::create([
             'name' => 'User',
-            'email' => 'user@example.com',
+            'email' => 'user@gmail.com',
             'password' => 'password',
             'role' => 'teacher',
             'email_verified_at' => now(),
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'user@example.com',
+            'email' => 'user@gmail.com',
             'password' => 'wrong-password',
         ]);
 
@@ -161,7 +161,7 @@ class AuthenticationTest extends TestCase
 
         $response = $this->putJson('/api/profile', [
             'name' => 'Updated Name',
-            'email' => 'updated@example.com',
+            'email' => 'updated@gmail.com',
         ]);
 
         $response->assertStatus(200)
@@ -172,7 +172,7 @@ class AuthenticationTest extends TestCase
         $this->assertDatabaseHas('users', [
             'id' => $user->id,
             'name' => 'Updated Name',
-            'email' => 'updated@example.com',
+            'email' => 'updated@gmail.com',
         ]);
     }
 
@@ -227,7 +227,7 @@ class AuthenticationTest extends TestCase
     {
         User::create([
             'name' => 'Deactivated User',
-            'email' => 'inactive@example.com',
+            'email' => 'inactive@gmail.com',
             'password' => 'password',
             'role' => 'teacher',
             'is_active' => false,
@@ -235,7 +235,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'inactive@example.com',
+            'email' => 'inactive@gmail.com',
             'password' => 'password',
         ]);
 

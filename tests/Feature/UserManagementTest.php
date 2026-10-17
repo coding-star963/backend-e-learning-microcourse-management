@@ -103,7 +103,7 @@ class UserManagementTest extends TestCase
 
         $response = $this->putJson("/api/users/{$this->teacher->id}", [
             'name' => 'Updated Teacher',
-            'email' => 'updated_teacher@school.com',
+            'email' => 'updated.teacher@gmail.com',
             'role' => 'teacher',
         ]);
 
@@ -115,7 +115,7 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('users', [
             'id' => $this->teacher->id,
             'name' => 'Updated Teacher',
-            'email' => 'updated_teacher@school.com',
+            'email' => 'updated.teacher@gmail.com',
         ]);
     }
 

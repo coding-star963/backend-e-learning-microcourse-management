@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Notifications\StudentNotice;
 use App\Rules\GmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,10 @@ class UserController extends Controller
 
         if ($request->has('role') && in_array($request->role, ['administrator', 'teacher', 'student'])) {
             $query->where('role', $request->role);
+        }
+
+        if (in_array($request->status, [User::ACCOUNT_ACTIVE, User::ACCOUNT_SUSPENDED, User::ACCOUNT_DEACTIVATED], true)) {
+            $query->withAccountStatus($request->status);
         }
 
         if ($request->filled('search')) {
@@ -50,10 +55,8 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => [
-                'required', 'email', 'max:255', 'unique:users,email',
-                Rule::when($request->input('role') === User::ROLE_STUDENT, [new GmailAddress]),
-            ],
+            // Every account signs in with a Gmail address.
+            'email' => ['required', 'email', 'max:255', 'unique:users,email', new GmailAddress],
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|in:administrator,teacher,student',
         ]);
@@ -91,8 +94,7 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
-        // A student's new email must be a Gmail address.
-        $isStudent = $request->input('role', $user->role) === User::ROLE_STUDENT;
+        // A changed email must be a Gmail address (only Gmail can sign in).
         $changesEmail = $request->filled('email')
             && strcasecmp(trim((string) $request->email), $user->email) !== 0;
 
@@ -100,7 +102,7 @@ class UserController extends Controller
             'name' => 'sometimes|string|max:255',
             'email' => [
                 'sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id,
-                Rule::when($isStudent && $changesEmail, [new GmailAddress]),
+                Rule::when($changesEmail, [new GmailAddress]),
             ],
             'role' => 'sometimes|in:administrator,teacher,student',
         ]);
@@ -135,8 +137,10 @@ class UserController extends Controller
             ], 422);
         }
 
+        // Activating or deactivating also ends a suspension, so the account has one clear status.
         $user->update([
             'is_active' => !$user->is_active,
+            'suspended_at' => null,
         ]);
 
         // Sign a deactivated user out of the web and mobile apps immediately.
@@ -150,5 +154,71 @@ class UserController extends Controller
             'user' => new UserResource($user->fresh()),
             'message' => "User {$status} successfully.",
         ]);
+    }
+
+    /**
+     * Suspend an account: it cannot sign in to the web or mobile app until it is reactivated.
+     *
+     * Administrators may suspend any other account; teachers only students
+     * enrolled in their own courses.
+     */
+    public function suspend(Request $request, User $user): JsonResponse
+    {
+        $this->authorizeSuspension($request->user(), $user);
+
+        if ($user->isInactive()) {
+            return response()->json([
+                'message' => 'This account is deactivated. Activate it before changing its suspension.',
+            ], 422);
+        }
+
+        if (! $user->isSuspended()) {
+            $user->update(['suspended_at' => now()]);
+        }
+
+        return response()->json([
+            'user' => new UserResource($user->fresh()),
+            'message' => "{$user->name}'s account was suspended. They are signed out and cannot sign in until it is reactivated.",
+        ]);
+    }
+
+    /**
+     * Lift a suspension so the account can sign in again.
+     */
+    public function unsuspend(Request $request, User $user): JsonResponse
+    {
+        $this->authorizeSuspension($request->user(), $user);
+
+        if ($user->isSuspended()) {
+            $user->update(['suspended_at' => null]);
+
+            if ($user->isStudent()) {
+                $user->notify(new StudentNotice(
+                    'account_reactivated',
+                    'Account reactivated',
+                    'Your account was reactivated. Welcome back — you can continue learning.',
+                    null,
+                    $request->user(),
+                ));
+            }
+        }
+
+        return response()->json([
+            'user' => new UserResource($user->fresh()),
+            'message' => "{$user->name}'s account was reactivated.",
+        ]);
+    }
+
+    private function authorizeSuspension(User $actor, User $user): void
+    {
+        abort_if($actor->id === $user->id, 422, 'You cannot suspend or reactivate your own account.');
+
+        if ($actor->isTeacher()) {
+            abort_unless(
+                $user->isStudentOf($actor),
+                403,
+                'You can only suspend students enrolled in your own courses.'
+            );
+        }
     }
 }

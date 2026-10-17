@@ -8,6 +8,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\User;
+use App\Notifications\StudentNotice;
 use App\Rules\GmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -75,6 +76,12 @@ class EnrollmentController extends Controller
         );
 
         if (! empty($validated['user_id'])) {
+            if (User::find($validated['user_id'])->accountStatus() !== User::ACCOUNT_ACTIVE) {
+                return response()->json([
+                    'message' => 'This student account is suspended or deactivated. Reactivate it before enrolling the student.',
+                ], 422);
+            }
+
             $exists = Enrollment::where('user_id', $validated['user_id'])
                 ->where('course_id', $validated['course_id'])
                 ->exists();
@@ -108,14 +115,18 @@ class EnrollmentController extends Controller
             ]);
         });
 
+        $enrollment->load(['user', 'course.teacher', 'course.category']);
+        $enrollment->user->notify(StudentNotice::forEnrollment('enrolled', $enrollment, $request->user()));
+
         return response()->json([
-            'enrollment' => new EnrollmentResource($enrollment->load(['user', 'course.teacher', 'course.category'])),
+            'enrollment' => new EnrollmentResource($enrollment),
             'message' => 'Student enrolled successfully.',
         ], 201);
     }
 
     /**
-     * Active student accounts that can be enrolled, with their enrollment counts.
+     * Student accounts that are not deactivated, with their enrollment counts.
+     * Suspended students are listed (so they can be reactivated) but cannot be enrolled.
      */
     public function students(Request $request): AnonymousResourceCollection
     {
@@ -159,12 +170,24 @@ class EnrollmentController extends Controller
         ]);
 
         if (isset($validated['status'])) {
+            $previous = $enrollment->status;
             match ($validated['status']) {
                 'completed' => $enrollment->complete(),
                 'cancelled' => $enrollment->cancel(),
                 'suspended' => $enrollment->suspend(),
                 default => $enrollment->reactivate(),
             };
+
+            // Tell the student (mobile app) what changed.
+            if ($previous !== $enrollment->status) {
+                $action = match ($enrollment->status) {
+                    Enrollment::STATUS_COMPLETED => 'completed',
+                    Enrollment::STATUS_CANCELLED => 'cancelled',
+                    Enrollment::STATUS_SUSPENDED => 'suspended',
+                    default => 'reactivated',
+                };
+                $enrollment->user->notify(StudentNotice::forEnrollment($action, $enrollment, $request->user()));
+            }
             unset($validated['status']);
         }
 
@@ -182,7 +205,12 @@ class EnrollmentController extends Controller
     {
         abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You can only manage enrollments in your own courses.');
 
+        // The enrollment's lesson progress is removed with it (cascade), so the
+        // student can enroll again from scratch.
+        $notice = StudentNotice::forEnrollment('deleted', $enrollment, $request->user());
+        $student = $enrollment->user;
         $enrollment->delete();
+        $student->notify($notice);
 
         return response()->json([
             'message' => 'Enrollment record deleted successfully.',

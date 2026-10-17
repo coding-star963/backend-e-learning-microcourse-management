@@ -27,7 +27,7 @@ class ProfileController extends Controller
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
-        // Students changing their email must switch to a Gmail address.
+        // A changed email must be a Gmail address (only Gmail can sign in).
         $changesEmail = $request->filled('email')
             && strcasecmp(trim((string) $request->email), $user->email) !== 0;
 
@@ -35,7 +35,7 @@ class ProfileController extends Controller
             'name' => 'sometimes|string|max:255',
             'email' => [
                 'sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id,
-                Rule::when($user->isStudent() && $changesEmail, [new GmailAddress]),
+                Rule::when($changesEmail, [new GmailAddress]),
             ],
         ]);
 
