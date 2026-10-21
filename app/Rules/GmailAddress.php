@@ -7,7 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
  * Every account uses a Gmail address (name@gmail.com): sign-in, sign-up,
- * and wherever an administrator, teacher or the user sets an email.
+ * and wherever an administrator or the user sets an email.
  */
 class GmailAddress implements ValidationRule
 {

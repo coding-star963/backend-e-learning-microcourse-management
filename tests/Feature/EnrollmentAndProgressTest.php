@@ -28,7 +28,7 @@ class EnrollmentAndProgressTest extends TestCase
             'name' => 'Teacher User',
             'email' => 'teacher@school.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'is_active' => true,
         ]);
 
@@ -61,7 +61,7 @@ class EnrollmentAndProgressTest extends TestCase
         ]);
     }
 
-    public function test_teacher_can_enroll_student_in_course(): void
+    public function test_administrator_can_enroll_student_in_course(): void
     {
         $this->actingAs($this->teacher);
 
@@ -105,7 +105,7 @@ class EnrollmentAndProgressTest extends TestCase
             ]);
     }
 
-    public function test_teacher_can_view_enrollment_stats(): void
+    public function test_administrator_can_view_enrollment_stats(): void
     {
         Enrollment::create([
             'user_id' => $this->student->id,

@@ -14,12 +14,10 @@ class CategoryController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        // Count only the courses this user can see: teachers their own, students published ones.
+        // Count only the courses this user can see: learners published ones.
         $user = $request->user();
         $query = Category::withCount(['courses' => function ($q) use ($user) {
-            if ($user->isTeacher()) {
-                $q->where('teacher_id', $user->id);
-            } elseif ($user->isStudent()) {
+            if ($user->isStudent()) {
                 $q->where('status', Course::STATUS_PUBLISHED);
             }
         }]);

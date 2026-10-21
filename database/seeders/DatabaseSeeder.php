@@ -24,31 +24,6 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        // Create teachers
-        $teacher1 = User::create([
-            'name' => 'Sarah Johnson',
-            'email' => 'sarah.johnson@gmail.com',
-            'password' => 'password',
-            'role' => 'teacher',
-            'email_verified_at' => now(),
-        ]);
-
-        $teacher2 = User::create([
-            'name' => 'Michael Chen',
-            'email' => 'michael.chen@gmail.com',
-            'password' => 'password',
-            'role' => 'teacher',
-            'email_verified_at' => now(),
-        ]);
-
-        $teacher3 = User::create([
-            'name' => 'Emily Davis',
-            'email' => 'emily.davis@gmail.com',
-            'password' => 'password',
-            'role' => 'teacher',
-            'email_verified_at' => now(),
-        ]);
-
         // Create categories
         $categories = [];
         $categoryData = [
@@ -67,7 +42,7 @@ class DatabaseSeeder extends Seeder
         // Create courses with lessons (5 courses, 3-5 lessons per course)
         $courseData = [
             [
-                'teacher_id' => $teacher1->id,
+                'teacher_id' => $admin->id,
                 'category_id' => $categories[0]->id,
                 'title' => 'HTML & CSS Fundamentals',
                 'description' => 'Learn the building blocks of the web: semantic HTML and modern CSS layouts.',
@@ -76,7 +51,6 @@ class DatabaseSeeder extends Seeder
                 'is_published' => true,
                 'difficulty_level' => 'beginner',
                 'duration' => '1 hour',
-                'section' => 'BSIT 1-A',
                 'lessons' => [
                     ['title' => 'Introduction to HTML', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 600, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Working with Text & Links', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 2],
@@ -85,7 +59,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
             [
-                'teacher_id' => $teacher1->id,
+                'teacher_id' => $admin->id,
                 'category_id' => $categories[0]->id,
                 'title' => 'JavaScript Essentials',
                 'description' => 'Variables, functions, and DOM manipulation to make web pages interactive.',
@@ -94,7 +68,6 @@ class DatabaseSeeder extends Seeder
                 'is_published' => true,
                 'difficulty_level' => 'intermediate',
                 'duration' => '1 hour 30 minutes',
-                'section' => 'BSIT 2-A',
                 'lessons' => [
                     ['title' => 'Variables & Data Types', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Operators & Conditions', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 2],
@@ -104,7 +77,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
             [
-                'teacher_id' => $teacher2->id,
+                'teacher_id' => $admin->id,
                 'category_id' => $categories[1]->id,
                 'title' => 'Programming Logic with Python',
                 'description' => 'Think like a programmer: conditions, loops, and problem solving in Python.',
@@ -113,7 +86,6 @@ class DatabaseSeeder extends Seeder
                 'is_published' => true,
                 'difficulty_level' => 'beginner',
                 'duration' => '45 minutes',
-                'section' => 'BSCS 1-A',
                 'lessons' => [
                     ['title' => 'Conditions & Loops', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Functions & Problem Solving', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 2],
@@ -121,7 +93,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
             [
-                'teacher_id' => $teacher3->id,
+                'teacher_id' => $admin->id,
                 'category_id' => $categories[3]->id,
                 'title' => 'Mobile Apps with Flutter',
                 'description' => 'Build a simple cross-platform mobile app with Flutter widgets.',
@@ -130,7 +102,6 @@ class DatabaseSeeder extends Seeder
                 'is_published' => true,
                 'difficulty_level' => 'intermediate',
                 'duration' => '1 hour 15 minutes',
-                'section' => 'BSIT 3-A',
                 'lessons' => [
                     ['title' => 'Flutter Widgets', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 900, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Layouts & Navigation', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1100, 'order' => 2],
@@ -139,7 +110,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
             [
-                'teacher_id' => $teacher1->id,
+                'teacher_id' => $admin->id,
                 'category_id' => $categories[5]->id,
                 'title' => 'UI/UX Design Principles',
                 'description' => 'Design user-friendly screens using layout, color, and typography basics.',
@@ -148,7 +119,6 @@ class DatabaseSeeder extends Seeder
                 'is_published' => false,
                 'difficulty_level' => 'beginner',
                 'duration' => '45 minutes',
-                'section' => 'BSIT 2-B',
                 'lessons' => [
                     ['title' => 'Design Fundamentals', 'status' => 'draft', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 1],
                     ['title' => 'Color & Typography', 'status' => 'draft', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 2],
@@ -259,12 +229,11 @@ class DatabaseSeeder extends Seeder
         }
 
         // Create announcements
-        $teachers = User::where('role', 'teacher')->get();
         $publishedCourses = Course::where('status', 'published')->get();
 
         $announcementData = [
             [
-                'user_id' => $teachers[0]->id,
+                'user_id' => $admin->id,
                 'course_id' => null,
                 'title' => 'Welcome to the Learning Platform',
                 'content' => 'We are excited to announce the launch of our new e-learning platform. Browse our courses and start learning today!',
@@ -273,7 +242,7 @@ class DatabaseSeeder extends Seeder
                 'days_ago' => 10,
             ],
             [
-                'user_id' => $teachers[0]->id,
+                'user_id' => $admin->id,
                 'course_id' => $publishedCourses[0]->id ?? null,
                 'title' => 'New Lesson Added: Advanced Topics',
                 'content' => 'A new lesson has been added to the course. Check it out to expand your knowledge.',
@@ -282,7 +251,7 @@ class DatabaseSeeder extends Seeder
                 'days_ago' => 5,
             ],
             [
-                'user_id' => $teachers[1]->id ?? $teachers[0]->id,
+                'user_id' => $admin->id,
                 'course_id' => null,
                 'title' => 'Scheduled Maintenance Notice',
                 'content' => 'The platform will undergo scheduled maintenance this weekend. Please plan your learning sessions accordingly.',
@@ -291,7 +260,7 @@ class DatabaseSeeder extends Seeder
                 'days_ago' => 3,
             ],
             [
-                'user_id' => $teachers[0]->id,
+                'user_id' => $admin->id,
                 'course_id' => $publishedCourses[1]->id ?? null,
                 'title' => 'Course Update: New Resources Available',
                 'content' => 'Additional learning resources have been uploaded to the course. Review them at your convenience.',
@@ -300,7 +269,7 @@ class DatabaseSeeder extends Seeder
                 'days_ago' => 1,
             ],
             [
-                'user_id' => $teachers[2]->id ?? $teachers[0]->id,
+                'user_id' => $admin->id,
                 'course_id' => null,
                 'title' => 'Upcoming Webinar Series',
                 'content' => 'Stay tuned for our upcoming webinar series on industry best practices. Registration details coming soon.',

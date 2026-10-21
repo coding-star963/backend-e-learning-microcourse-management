@@ -22,7 +22,7 @@ class LessonController extends Controller
         $user = $request->user();
         abort_unless($course->isVisibleTo($user), 403, 'You do not have access to this course.');
 
-        $query = Lesson::where('course_id', $course->id)->with(['resources']);
+        $query = Lesson::where('course_id', $course->id)->with(['resources', 'quiz']);
 
         // Students only see published lessons.
         if (! $course->isManageableBy($user)) {
@@ -54,7 +54,7 @@ class LessonController extends Controller
             'available_at' => 'nullable|date|required_if:availability,scheduled',
             'is_free_preview' => 'sometimes|boolean',
             'video' => 'nullable|file|mimetypes:video/mp4,video/webm,video/ogg|max:102400',
-            'audio' => 'nullable|file|mimetypes:audio/mpeg,audio/wav,audio/ogg|max:51200',
+            'audio' => 'nullable|file|mimetypes:audio/mpeg,audio/wav,audio/x-wav,audio/wave,audio/vnd.wave,audio/ogg|max:51200',
             'duration_seconds' => 'nullable|integer|min:0',
         ]);
 
@@ -98,7 +98,7 @@ class LessonController extends Controller
             abort_unless($lesson->isPublished(), 404, 'Lesson not found.');
         }
 
-        $lesson->load('resources');
+        $lesson->load('resources', 'quiz');
 
         if ($user->isStudent()) {
             $this->attachCompletion(collect([$lesson]), $user->id);
@@ -120,7 +120,7 @@ class LessonController extends Controller
             'available_at' => 'nullable|date|required_if:availability,scheduled',
             'is_free_preview' => 'sometimes|boolean',
             'video' => 'nullable|file|mimetypes:video/mp4,video/webm,video/ogg|max:102400',
-            'audio' => 'nullable|file|mimetypes:audio/mpeg,audio/wav,audio/ogg|max:51200',
+            'audio' => 'nullable|file|mimetypes:audio/mpeg,audio/wav,audio/x-wav,audio/wave,audio/vnd.wave,audio/ogg|max:51200',
             'duration_seconds' => 'nullable|integer|min:0',
         ]);
 

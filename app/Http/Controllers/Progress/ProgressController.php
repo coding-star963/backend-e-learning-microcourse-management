@@ -17,20 +17,12 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ProgressController extends Controller
 {
     /**
-     * Students whose progress the viewer may monitor: every student for an
-     * administrator, only students enrolled in their own courses for a teacher.
+     * Administrators may monitor every learner.
      */
     public function students(Request $request): AnonymousResourceCollection
     {
         $viewer = $request->user();
         $query = User::where('role', User::ROLE_STUDENT);
-
-        if ($viewer->isTeacher()) {
-            $query->whereHas('enrollments', fn ($q) => $q->whereIn(
-                'course_id',
-                Course::where('teacher_id', $viewer->id)->select('id')
-            ));
-        }
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -73,7 +65,6 @@ class ProgressController extends Controller
                     'id' => $course->id,
                     'title' => $course->title,
                     'slug' => $course->slug,
-                    'teacher' => $course->teacher->name,
                     'category' => $course->category->name ?? 'Uncategorized',
                 ],
                 'status' => $enrollment->status,
@@ -222,7 +213,6 @@ class ProgressController extends Controller
                 'id' => $course->id,
                 'title' => $course->title,
                 'slug' => $course->slug,
-                'teacher' => $course->teacher->name,
                 'category' => $course->category->name ?? 'Uncategorized',
             ],
             'summary' => [
@@ -377,7 +367,7 @@ class ProgressController extends Controller
 
     /**
      * Course ids the viewer may see for this student's progress:
-     * null = all (administrator or the student themself), or the teacher's own course ids.
+     * null = all (administrator or the learner themself); everyone else is refused.
      */
     private function allowedCourseIds(User $viewer, User $student): ?array
     {
@@ -385,9 +375,7 @@ class ProgressController extends Controller
             return null;
         }
 
-        abort_unless($viewer->isTeacher(), 403, 'You can only view your own progress.');
-
-        return Course::where('teacher_id', $viewer->id)->pluck('id')->all();
+        abort(403, 'You can only view your own progress.');
     }
 
     private function authorizeCourse(Request $request, Course $course): void

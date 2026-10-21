@@ -28,7 +28,7 @@ class LessonManagementTest extends TestCase
             'name' => 'Teacher User',
             'email' => 'teacher@school.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'is_active' => true,
         ]);
 
@@ -47,7 +47,7 @@ class LessonManagementTest extends TestCase
         ]);
     }
 
-    public function test_teacher_can_create_lesson(): void
+    public function test_administrator_can_create_lesson(): void
     {
         $this->actingAs($this->teacher);
 
@@ -73,7 +73,7 @@ class LessonManagementTest extends TestCase
         ]);
     }
 
-    public function test_teacher_can_reorder_lessons(): void
+    public function test_administrator_can_reorder_lessons(): void
     {
         $this->actingAs($this->teacher);
 
@@ -105,7 +105,7 @@ class LessonManagementTest extends TestCase
         $this->assertEquals(2, $lesson1->fresh()->order);
     }
 
-    public function test_teacher_can_update_lesson_availability(): void
+    public function test_administrator_can_update_lesson_availability(): void
     {
         $this->actingAs($this->teacher);
 
@@ -124,7 +124,7 @@ class LessonManagementTest extends TestCase
         $this->assertEquals('free', $lesson->fresh()->availability);
     }
 
-    public function test_teacher_can_upload_and_delete_resource(): void
+    public function test_administrator_can_upload_and_delete_resource(): void
     {
         $this->actingAs($this->teacher);
 

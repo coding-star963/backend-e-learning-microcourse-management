@@ -26,7 +26,7 @@ class StudentFeaturesTest extends TestCase
 
         $this->teacher = User::create([
             'name' => 'Teacher', 'email' => 'teacher@school.com', 'password' => 'password',
-            'role' => 'teacher', 'is_active' => true,
+            'role' => 'administrator', 'is_active' => true,
         ]);
         $this->student = User::create([
             'name' => 'Student', 'email' => 'student@school.com', 'password' => 'password',
@@ -61,7 +61,7 @@ class StudentFeaturesTest extends TestCase
             ->assertJsonPath('data.learning_objectives', ['Build a widget tree', 'Use state management']);
     }
 
-    public function test_teacher_can_save_learning_objectives(): void
+    public function test_administrator_can_save_learning_objectives(): void
     {
         $this->actingAs($this->teacher)
             ->putJson("/api/courses/{$this->course->slug}", ['learning_objectives' => "One\nTwo"])

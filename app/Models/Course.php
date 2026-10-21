@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,7 +30,6 @@ class Course extends Model
         'is_published',
         'difficulty_level',
         'duration',
-        'section',
     ];
 
     protected $casts = [
@@ -82,6 +83,12 @@ class Course extends Model
             ->all();
     }
 
+    public function getThumbnailUrlAttribute(): ?string
+    {
+        return MediaUrl::publicUrl($this->thumbnail);
+    }
+
+    // Legacy course creator relation; ownership does not grant permissions.
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'teacher_id');
@@ -184,11 +191,11 @@ class Course extends Model
     }
 
     /**
-     * Administrators manage every course; teachers manage only their own.
+     * Administrators manage every course.
      */
     public function isManageableBy(User $user): bool
     {
-        return $user->isAdministrator() || (int) $this->teacher_id === (int) $user->id;
+        return $user->isAdministrator();
     }
 
     /**

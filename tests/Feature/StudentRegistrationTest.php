@@ -87,7 +87,7 @@ class StudentRegistrationTest extends TestCase
     {
         $this->actingAs($this->makeUser('admin@school.com', 'administrator'));
 
-        foreach (['student', 'teacher', 'administrator'] as $role) {
+        foreach (['student', 'administrator'] as $role) {
             $this->postJson('/api/users', [
                 'name' => ucfirst($role),
                 'email' => "{$role}@school.com",
@@ -110,7 +110,7 @@ class StudentRegistrationTest extends TestCase
     public function test_admin_cannot_change_a_teachers_email_to_non_gmail(): void
     {
         $this->actingAs($this->makeUser('admin@gmail.com', 'administrator'));
-        $teacher = $this->makeUser('teacher@gmail.com', 'teacher');
+        $teacher = $this->makeUser('teacher@gmail.com', 'administrator');
 
         $this->putJson("/api/users/{$teacher->id}", ['email' => 'teacher@school.com'])
             ->assertStatus(422)->assertJsonValidationErrors(['email']);
@@ -131,9 +131,9 @@ class StudentRegistrationTest extends TestCase
             ->assertStatus(200);
     }
 
-    public function test_teacher_must_use_gmail_when_registering_a_student_for_enrollment(): void
+    public function test_administrator_must_use_gmail_when_registering_a_learner_for_enrollment(): void
     {
-        $teacher = $this->makeUser('teacher@school.com', 'teacher');
+        $teacher = $this->makeUser('teacher@school.com', 'administrator');
         $course = Course::create([
             'teacher_id' => $teacher->id,
             'title' => 'Course',
@@ -175,9 +175,9 @@ class StudentRegistrationTest extends TestCase
             ->assertStatus(200);
     }
 
-    public function test_teacher_profile_email_changes_must_be_gmail(): void
+    public function test_administrator_profile_email_changes_must_be_gmail(): void
     {
-        $this->actingAs($this->makeUser('teacher@gmail.com', 'teacher'));
+        $this->actingAs($this->makeUser('teacher@gmail.com', 'administrator'));
 
         $this->putJson('/api/profile', ['email' => 'teacher@deped.gov.ph'])
             ->assertStatus(422)->assertJsonValidationErrors(['email']);
@@ -189,8 +189,8 @@ class StudentRegistrationTest extends TestCase
 
     public function test_only_gmail_addresses_can_sign_in(): void
     {
-        $this->makeUser('legacy@school.com', 'teacher');
-        $this->makeUser('teacher@gmail.com', 'teacher');
+        $this->makeUser('legacy@school.com', 'administrator');
+        $this->makeUser('teacher@gmail.com', 'administrator');
 
         $this->postJson('/api/login', ['email' => 'legacy@school.com', 'password' => 'password'])
             ->assertStatus(422)

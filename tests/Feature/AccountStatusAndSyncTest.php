@@ -31,8 +31,8 @@ class AccountStatusAndSyncTest extends TestCase
         parent::setUp();
 
         $this->admin = $this->makeUser('admin@gmail.com', 'administrator');
-        $this->teacher = $this->makeUser('teacher@gmail.com', 'teacher');
-        $this->otherTeacher = $this->makeUser('other.teacher@gmail.com', 'teacher');
+        $this->teacher = $this->makeUser('teacher@gmail.com', 'administrator');
+        $this->otherTeacher = $this->makeUser('other.teacher@gmail.com', 'administrator');
         $this->student = $this->makeUser('student@gmail.com', 'student');
 
         $this->course = Course::create([
@@ -123,25 +123,12 @@ class AccountStatusAndSyncTest extends TestCase
         $this->assertContains('account_reactivated', $this->noticeActions($this->student));
     }
 
-    public function test_teachers_can_only_suspend_students_in_their_own_courses(): void
+    public function test_administrators_manage_accounts_without_course_ownership(): void
     {
-        $this->actingAs($this->teacher)
-            ->postJson("/api/users/{$this->student->id}/suspend")
-            ->assertForbidden();
-
-        $this->enroll($this->student);
-
-        $this->actingAs($this->otherTeacher)
-            ->postJson("/api/users/{$this->student->id}/suspend")
-            ->assertForbidden();
-        $this->actingAs($this->teacher)
-            ->postJson("/api/users/{$this->otherTeacher->id}/suspend")
-            ->assertForbidden();
-        $this->actingAs($this->teacher)
-            ->postJson("/api/users/{$this->student->id}/suspend")
-            ->assertOk();
-
+        $this->actingAs($this->teacher)->postJson("/api/users/{$this->student->id}/suspend")->assertOk();
         $this->assertTrue($this->student->fresh()->isSuspended());
+        $this->actingAs($this->otherTeacher)->postJson("/api/users/{$this->student->id}/unsuspend")->assertOk();
+        $this->assertFalse($this->student->fresh()->isSuspended());
     }
 
     public function test_activate_and_deactivate_clear_a_suspension(): void
@@ -269,7 +256,7 @@ class AccountStatusAndSyncTest extends TestCase
 
         $this->postJson("/api/users/{$this->admin->id}/toggle-status")->assertStatus(422);
         $this->postJson("/api/users/{$this->admin->id}/suspend")->assertStatus(422);
-        $this->putJson("/api/users/{$this->admin->id}", ['role' => 'teacher'])->assertStatus(422);
+        $this->putJson("/api/users/{$this->admin->id}", ['role' => 'student'])->assertStatus(422);
 
         $this->assertSame('active', $this->admin->fresh()->accountStatus());
         $this->assertTrue($this->admin->fresh()->isAdministrator());
@@ -337,7 +324,7 @@ class AccountStatusAndSyncTest extends TestCase
         $this->putJson("/api/lessons/{$this->lesson->id}/progress", ['completed' => true])->assertStatus(422);
         $this->postJson('/api/enrollments', ['course_id' => $this->course->id])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Your enrollment in this course was cancelled. Please contact your teacher.');
+            ->assertJsonPath('message', 'Your enrollment in this course was cancelled. Please contact an administrator.');
         $this->getJson('/api/dashboard')->assertJsonPath('summary.enrolled_courses', 0);
     }
 
@@ -395,7 +382,7 @@ class AccountStatusAndSyncTest extends TestCase
 
     // --- Dashboard ------------------------------------------------------------
 
-    public function test_admin_dashboard_counts_students_and_teachers_by_account_status(): void
+    public function test_admin_dashboard_counts_learner_accounts_by_status(): void
     {
         $this->student->update(['suspended_at' => now()]);
         $this->makeUser('second.student@gmail.com', 'student');
@@ -404,16 +391,16 @@ class AccountStatusAndSyncTest extends TestCase
 
         $this->actingAs($this->admin)->getJson('/api/dashboard')
             ->assertJsonPath('account_stats.students', ['total' => 3, 'active' => 1, 'suspended' => 1, 'deactivated' => 1])
-            ->assertJsonPath('account_stats.teachers', ['total' => 2, 'active' => 1, 'suspended' => 0, 'deactivated' => 1]);
+            ->assertJsonMissingPath('account_stats.teachers');
     }
 
-    public function test_teacher_dashboard_counts_only_their_students_by_account_status(): void
+    public function test_administrator_dashboard_counts_all_learner_accounts(): void
     {
         $this->enroll($this->student);
         $this->student->update(['suspended_at' => now()]);
         $this->makeUser('not.mine@gmail.com', 'student');
 
         $this->actingAs($this->teacher)->getJson('/api/dashboard')
-            ->assertJsonPath('account_stats.students', ['total' => 1, 'active' => 0, 'suspended' => 1, 'deactivated' => 0]);
+            ->assertJsonPath('account_stats.students', ['total' => 2, 'active' => 1, 'suspended' => 1, 'deactivated' => 0]);
     }
 }

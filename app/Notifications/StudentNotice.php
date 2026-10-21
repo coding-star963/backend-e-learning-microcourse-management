@@ -9,7 +9,7 @@ use Illuminate\Notifications\Notification;
 
 /**
  * A personal notice for one student (stored in the notifications table and
- * read by the mobile app): an administrator or teacher changed their
+ * read by the mobile app): an administrator changed their
  * enrollment or their account.
  */
 class StudentNotice extends Notification
@@ -35,9 +35,9 @@ class StudentNotice extends Notification
         [$heading, $content] = match ($action) {
             'enrolled' => ['You were enrolled', "You were enrolled in \"{$title}\". It is now in My Courses."],
             'completed' => ['Course marked as completed', "Your enrollment in \"{$title}\" was marked as completed."],
-            'suspended' => ['Enrollment suspended', "Your enrollment in \"{$title}\" was suspended. You cannot open its lessons or record progress until it is reactivated. Please contact your teacher."],
+            'suspended' => ['Enrollment suspended', "Your enrollment in \"{$title}\" was suspended. You cannot open its lessons or record progress until it is reactivated. Please contact an administrator."],
             'reactivated' => ['Enrollment reactivated', "Your enrollment in \"{$title}\" is active again. You can continue learning."],
-            'cancelled' => ['Enrollment cancelled', "Your enrollment in \"{$title}\" was cancelled. You can no longer open its lessons or record progress. Please contact your teacher if this is a mistake."],
+            'cancelled' => ['Enrollment cancelled', "Your enrollment in \"{$title}\" was cancelled. You can no longer open its lessons or record progress. Please contact an administrator if this is a mistake."],
             'deleted' => ['Enrollment removed', "Your enrollment record for \"{$title}\" was deleted, together with its progress. You can enroll again from the course catalog."],
             default => ['Enrollment updated', "Your enrollment in \"{$title}\" was updated."],
         };

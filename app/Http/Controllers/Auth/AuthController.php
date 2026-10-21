@@ -39,6 +39,11 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! in_array($user->role, [User::ROLE_ADMINISTRATOR, User::ROLE_STUDENT], true)) {
+            Auth::logout();
+            throw ValidationException::withMessages(['email' => ['This account role is no longer supported. Contact an administrator.']]);
+        }
+
         if (!$user->isActive()) {
             Auth::logout();
             throw ValidationException::withMessages([

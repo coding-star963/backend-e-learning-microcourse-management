@@ -6,7 +6,7 @@ return [
     'allowed_origins' => ['*'],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
-    'exposed_headers' => [],
+    'exposed_headers' => ['Accept-Ranges', 'Content-Length', 'Content-Range', 'Content-Type'],
     'max_age' => 0,
     // The web and mobile apps authenticate with Bearer tokens, not cookies, so
     // cross-origin cookies are not allowed. ('*' origins + credentials would let

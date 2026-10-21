@@ -33,12 +33,12 @@ class AnnouncementAndDashboardTest extends TestCase
             'name' => 'Teacher User',
             'email' => 'teacher@school.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'is_active' => true,
         ]);
     }
 
-    public function test_teacher_can_create_and_publish_announcement(): void
+    public function test_administrator_can_create_and_publish_announcement(): void
     {
         $this->actingAs($this->teacher);
 
@@ -96,7 +96,6 @@ class AnnouncementAndDashboardTest extends TestCase
                 'summary' => [
                     'total_users',
                     'total_students',
-                    'total_teachers',
                     'total_courses',
                     'published_courses',
                     'draft_courses',
@@ -117,7 +116,7 @@ class AnnouncementAndDashboardTest extends TestCase
             ]);
     }
 
-    public function test_teacher_dashboard_metrics(): void
+    public function test_additional_administrator_dashboard_metrics(): void
     {
         $this->actingAs($this->teacher);
 
@@ -142,7 +141,7 @@ class AnnouncementAndDashboardTest extends TestCase
                 'recent_enrollments',
             ])
             ->assertJson([
-                'role' => 'teacher',
+                'role' => 'administrator',
             ]);
     }
 }

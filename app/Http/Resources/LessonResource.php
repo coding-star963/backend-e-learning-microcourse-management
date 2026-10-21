@@ -32,6 +32,13 @@ class LessonResource extends JsonResource
             'duration_seconds' => $this->duration_seconds,
             'duration_formatted' => $this->duration_formatted,
             'is_free_preview' => $this->is_free_preview,
+            'quiz' => $this->whenLoaded('quiz', function () use ($mediaLocked, $request) {
+                $quiz = $this->resource->quiz;
+                if (! $quiz || $mediaLocked || (! $request->user()->isAdministrator() && ! $quiz->is_published)) {
+                    return null;
+                }
+                return ['id' => $quiz->id, 'title' => $quiz->title, 'question_count' => count($quiz->questions), 'is_published' => $quiz->is_published];
+            }),
             // Only present for students: whether they completed this lesson.
             'is_completed' => $this->when(
                 array_key_exists('is_completed', $this->resource->getAttributes()),

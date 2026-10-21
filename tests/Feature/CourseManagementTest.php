@@ -24,7 +24,7 @@ class CourseManagementTest extends TestCase
             'name' => 'Teacher User',
             'email' => 'teacher@school.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'is_active' => true,
         ]);
 
@@ -42,7 +42,7 @@ class CourseManagementTest extends TestCase
         ]);
     }
 
-    public function test_teacher_can_list_categories(): void
+    public function test_administrator_can_list_categories(): void
     {
         $this->actingAs($this->teacher);
 
@@ -56,7 +56,7 @@ class CourseManagementTest extends TestCase
             ]);
     }
 
-    public function test_teacher_can_create_category(): void
+    public function test_administrator_can_create_category(): void
     {
         $this->actingAs($this->teacher);
 
@@ -76,7 +76,7 @@ class CourseManagementTest extends TestCase
         ]);
     }
 
-    public function test_teacher_can_create_course(): void
+    public function test_administrator_can_create_course(): void
     {
         $this->actingAs($this->teacher);
 
@@ -102,7 +102,7 @@ class CourseManagementTest extends TestCase
         ]);
     }
 
-    public function test_teacher_can_view_course_by_slug(): void
+    public function test_administrator_can_view_course_by_slug(): void
     {
         $course = Course::create([
             'teacher_id' => $this->teacher->id,
@@ -127,7 +127,7 @@ class CourseManagementTest extends TestCase
             ]);
     }
 
-    public function test_teacher_can_publish_unpublish_archive_course(): void
+    public function test_administrator_can_publish_unpublish_archive_course(): void
     {
         $course = Course::create([
             'teacher_id' => $this->teacher->id,

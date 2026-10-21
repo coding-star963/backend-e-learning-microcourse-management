@@ -7,13 +7,18 @@ use App\Http\Controllers\Course\CourseController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Enrollment\EnrollmentController;
 use App\Http\Controllers\Lesson\LessonController;
+use App\Http\Controllers\Lesson\QuizController;
+use App\Http\Controllers\Media\MediaController;
 use App\Http\Controllers\Notification\NotificationController;
 use App\Http\Controllers\Sync\SyncController;
 use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Profile\ProfileController;
-use App\Http\Controllers\Teacher\TeacherController;
 use App\Http\Controllers\User\UserController;
 use Illuminate\Support\Facades\Route;
+
+// Public upload delivery, equivalent to the existing /storage files.
+Route::get('/media/{path}', [MediaController::class, 'show'])
+    ->where('path', '(?:course-thumbnails|profile-photos|lessons/(?:videos|audio|resources))/[^/]+');
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -48,15 +53,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/{user}/toggle-status', [UserController::class, 'toggleStatus']);
     });
 
-    // Account suspension: administrators for any other account, teachers for
-    // students in their own courses (checked in the controller).
-    Route::middleware('role:administrator,teacher')->prefix('users')->group(function () {
+    // Administrators manage account suspensions.
+    Route::middleware('role:administrator')->prefix('users')->group(function () {
         Route::post('/{user}/suspend', [UserController::class, 'suspend']);
         Route::post('/{user}/unsuspend', [UserController::class, 'unsuspend']);
     });
-
-    // Teacher management (administrator only)
-    Route::middleware('role:administrator')->get('/teachers', [TeacherController::class, 'index']);
 
     // Profile routes
     Route::prefix('profile')->group(function () {
@@ -71,8 +72,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::prefix('categories')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
         Route::get('/{category}', [CategoryController::class, 'show']);
-        Route::middleware('role:administrator,teacher')->post('/', [CategoryController::class, 'store']);
-        // Categories are shared by every teacher's courses, so only administrators change or remove them.
+        Route::middleware('role:administrator')->post('/', [CategoryController::class, 'store']);
+        // Administrators manage shared categories.
         Route::middleware('role:administrator')->group(function () {
             Route::put('/{category}', [CategoryController::class, 'update']);
             Route::delete('/{category}', [CategoryController::class, 'destroy']);
@@ -84,7 +85,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/', [CourseController::class, 'index']);
         Route::get('/categories', [CourseController::class, 'categories']);
         Route::get('/{course}', [CourseController::class, 'show']);
-        Route::middleware('role:administrator,teacher')->group(function () {
+        Route::middleware('role:administrator')->group(function () {
             Route::post('/', [CourseController::class, 'store']);
             Route::put('/{course}', [CourseController::class, 'update']);
             Route::delete('/{course}', [CourseController::class, 'destroy']);
@@ -98,9 +99,15 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Lesson routes
     // scopeBindings(): a {lesson} must belong to its {course}, a {resource} to its {lesson}
     Route::prefix('courses/{course}/lessons')->scopeBindings()->group(function () {
+        Route::get('/{lesson}/quiz', [QuizController::class, 'show']);
+        Route::post('/{lesson}/quiz/attempts', [QuizController::class, 'submit']);
+        Route::middleware('role:administrator')->group(function () {
+            Route::put('/{lesson}/quiz', [QuizController::class, 'update']);
+            Route::get('/{lesson}/quiz/attempts', [QuizController::class, 'attempts']);
+        });
         Route::get('/', [LessonController::class, 'index']);
         Route::get('/{lesson}', [LessonController::class, 'show']);
-        Route::middleware('role:administrator,teacher')->group(function () {
+        Route::middleware('role:administrator')->group(function () {
             Route::post('/', [LessonController::class, 'store']);
             Route::put('/reorder', [LessonController::class, 'reorder']);
             Route::put('/{lesson}', [LessonController::class, 'update']);
@@ -118,7 +125,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Enrollment routes
     Route::prefix('enrollments')->group(function () {
-        Route::middleware('role:administrator,teacher')->group(function () {
+        Route::middleware('role:administrator')->group(function () {
             Route::get('/', [EnrollmentController::class, 'index']);
             Route::get('/stats', [EnrollmentController::class, 'stats']);
             Route::get('/students', [EnrollmentController::class, 'students']);
@@ -139,7 +146,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/student/{user}', [ProgressController::class, 'studentProgress']);
         Route::get('/enrollment/{enrollment}', [ProgressController::class, 'enrollmentProgress']);
         Route::get('/history/{user}', [ProgressController::class, 'learningHistory']);
-        Route::middleware('role:administrator,teacher')->group(function () {
+        Route::middleware('role:administrator')->group(function () {
             Route::get('/students', [ProgressController::class, 'students']);
             Route::get('/course/{course}', [ProgressController::class, 'courseProgress']);
             Route::get('/course/{course}/summary', [ProgressController::class, 'courseProgressSummary']);
@@ -152,11 +159,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Announcement routes
     Route::prefix('announcements')->group(function () {
         // Registered before /{announcement} so "history" is not treated as an id.
-        Route::middleware('role:administrator,teacher')
+        Route::middleware('role:administrator')
             ->get('/history', [AnnouncementController::class, 'notificationHistory']);
         Route::get('/', [AnnouncementController::class, 'index']);
         Route::get('/{announcement}', [AnnouncementController::class, 'show']);
-        Route::middleware('role:administrator,teacher')->group(function () {
+        Route::middleware('role:administrator')->group(function () {
             Route::post('/', [AnnouncementController::class, 'store']);
             Route::put('/{announcement}', [AnnouncementController::class, 'update']);
             Route::delete('/{announcement}', [AnnouncementController::class, 'destroy']);

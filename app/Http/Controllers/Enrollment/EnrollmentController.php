@@ -15,13 +15,13 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EnrollmentController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Enrollment::with(['user', 'course.teacher', 'course.category']);
-        $this->scopeToTeacherCourses($request, $query);
 
         if ($request->has('status') && in_array($request->status, ['active', 'completed', 'cancelled', 'suspended'])) {
             $query->where('status', $request->status);
@@ -69,11 +69,11 @@ class EnrollmentController extends Controller
             'user_id.exists' => 'The selected account is not a student.',
         ]);
 
-        abort_unless(
-            Course::findOrFail($validated['course_id'])->isManageableBy($request->user()),
-            403,
-            'You can only enroll students in your own courses.'
-        );
+        $course = Course::findOrFail($validated['course_id']);
+        abort_unless($course->isManageableBy($request->user()), 403, 'Only administrators can enroll learners.');
+        if (! $course->isPublished()) {
+            return response()->json(['message' => 'This module is not available for enrollment. Choose a published module.'], 422);
+        }
 
         if (! empty($validated['user_id'])) {
             // Suspended students can still be enrolled; deactivated ones are frozen.
@@ -105,13 +105,23 @@ class EnrollmentController extends Controller
                 ])->id;
             }
 
-            return Enrollment::create([
+            // The unique learner/module index also handles simultaneous requests.
+            // Reusing a record must never reset its status or learning progress.
+            $enrollment = Enrollment::createOrFirst([
                 'user_id' => $userId,
                 'course_id' => $validated['course_id'],
+            ], [
                 'status' => 'active',
                 'progress' => 0,
                 'enrolled_at' => now(),
             ]);
+            if (! $enrollment->wasRecentlyCreated) {
+                throw ValidationException::withMessages([
+                    'course_id' => 'This student is already enrolled in this course.',
+                ]);
+            }
+
+            return $enrollment;
         });
 
         $enrollment->load(['user', 'course.teacher', 'course.category']);
@@ -129,15 +139,9 @@ class EnrollmentController extends Controller
      */
     public function students(Request $request): AnonymousResourceCollection
     {
-        // Teachers only count enrollments in their own courses.
-        $viewer = $request->user();
         $query = User::where('role', User::ROLE_STUDENT)
             ->where('is_active', true)
-            ->withCount(['enrollments' => function ($q) use ($viewer) {
-                if ($viewer->isTeacher()) {
-                    $q->whereIn('course_id', Course::where('teacher_id', $viewer->id)->select('id'));
-                }
-            }]);
+            ->withCount('enrollments');
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -221,7 +225,6 @@ class EnrollmentController extends Controller
     public function stats(Request $request): array
     {
         $base = Enrollment::query();
-        $this->scopeToTeacherCourses($request, $base);
 
         $total = (clone $base)->count();
         $active = (clone $base)->where('status', 'active')->count();
@@ -285,14 +288,13 @@ class EnrollmentController extends Controller
     {
         $viewer = $request->user();
         abort_unless(
-            $viewer->isAdministrator() || $viewer->isTeacher() || (int) $viewer->id === (int) $user->id,
+            $viewer->isAdministrator() || (int) $viewer->id === (int) $user->id,
             403,
             'You can only view your own enrollments.'
         );
 
         $query = Enrollment::with(['course.teacher', 'course.category', 'course.publishedLessons:id,course_id,order,status', 'lessonProgress'])
             ->where('user_id', $user->id);
-        $this->scopeToTeacherCourses($request, $query);
 
         if ($request->has('status') && in_array($request->status, ['active', 'completed', 'cancelled', 'suspended'])) {
             $query->where('status', $request->status);
@@ -337,18 +339,23 @@ class EnrollmentController extends Controller
 
             return response()->json([
                 'message' => $blocked
-                    ? "Your enrollment in this course was {$existing->status}. Please contact your teacher."
+                    ? "Your enrollment in this course was {$existing->status}. Please contact an administrator."
                     : 'You are already enrolled in this course.',
             ], 422);
         }
 
-        $enrollment = Enrollment::create([
+        $enrollment = Enrollment::createOrFirst([
             'user_id' => $student->id,
             'course_id' => $course->id,
+        ], [
             'status' => Enrollment::STATUS_ACTIVE,
             'progress' => 0,
             'enrolled_at' => now(),
         ]);
+
+        if (! $enrollment->wasRecentlyCreated) {
+            return response()->json(['message' => 'You are already enrolled in this course.'], 422);
+        }
 
         return response()->json([
             'enrollment' => new EnrollmentResource($enrollment->load(['user', 'course.teacher', 'course.category', 'lessonProgress'])),
@@ -356,15 +363,4 @@ class EnrollmentController extends Controller
         ], 201);
     }
 
-    /**
-     * Teachers only see enrollments in courses they own.
-     */
-    private function scopeToTeacherCourses(Request $request, $query): void
-    {
-        $user = $request->user();
-
-        if ($user->isTeacher()) {
-            $query->whereIn('course_id', Course::where('teacher_id', $user->id)->select('id'));
-        }
-    }
 }

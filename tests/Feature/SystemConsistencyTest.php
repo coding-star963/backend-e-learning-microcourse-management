@@ -29,8 +29,8 @@ class SystemConsistencyTest extends TestCase
         parent::setUp();
 
         $this->admin = $this->makeUser('admin@school.com', 'administrator');
-        $this->teacher = $this->makeUser('sarah@school.com', 'teacher');
-        $this->otherTeacher = $this->makeUser('michael@school.com', 'teacher');
+        $this->teacher = $this->makeUser('sarah@school.com', 'administrator');
+        $this->otherTeacher = $this->makeUser('michael@school.com', 'administrator');
         $this->student = $this->makeUser('alex@gmail.com', 'student');
         $this->otherStudent = $this->makeUser('maria@gmail.com', 'student');
 
@@ -86,7 +86,7 @@ class SystemConsistencyTest extends TestCase
 
     // --- Teacher isolation --------------------------------------------------
 
-    public function test_notification_history_hides_other_teachers_course_announcements(): void
+    public function test_administrator_notification_history_includes_all_courses(): void
     {
         Announcement::create(['user_id' => $this->otherTeacher->id, 'course_id' => $this->otherCourse->id, 'title' => 'Michael only', 'content' => 'x', 'type' => 'general', 'is_published' => true, 'published_at' => now()]);
         Announcement::create(['user_id' => $this->admin->id, 'course_id' => null, 'title' => 'Everyone', 'content' => 'x', 'type' => 'general', 'is_published' => true, 'published_at' => now()]);
@@ -95,7 +95,7 @@ class SystemConsistencyTest extends TestCase
         $titles = $this->actingAs($this->teacher)->getJson('/api/announcements/history')
             ->assertStatus(200)->json('data.*.title');
 
-        $this->assertEqualsCanonicalizing(['Everyone', 'Sarah only'], $titles);
+        $this->assertEqualsCanonicalizing(['Everyone', 'Sarah only', 'Michael only'], $titles);
 
         $this->actingAs($this->admin)->getJson('/api/announcements/history')->assertJsonCount(3, 'data');
     }
@@ -104,8 +104,8 @@ class SystemConsistencyTest extends TestCase
     {
         $category = Category::create(['name' => 'Programming']);
 
-        $this->actingAs($this->teacher);
-        $this->postJson('/api/categories', ['name' => 'Design'])->assertStatus(201);
+        $this->actingAs($this->student);
+        $this->postJson('/api/categories', ['name' => 'Design'])->assertStatus(403);
         $this->putJson("/api/categories/{$category->slug}", ['name' => 'Hijacked'])->assertStatus(403);
         $this->deleteJson("/api/categories/{$category->slug}")->assertStatus(403);
 
@@ -114,39 +114,38 @@ class SystemConsistencyTest extends TestCase
         $this->deleteJson('/api/categories/coding')->assertStatus(200);
     }
 
-    public function test_category_course_counts_only_include_the_teachers_own_courses(): void
+    public function test_administrator_category_counts_include_all_courses(): void
     {
         $category = Category::create(['name' => 'Programming']);
         $this->course->update(['category_id' => $category->id]);
         $this->otherCourse->update(['category_id' => $category->id]);
 
         $this->actingAs($this->teacher)->getJson('/api/categories')
-            ->assertJsonPath('data.0.courses_count', 1);
+            ->assertJsonPath('data.0.courses_count', 2);
         $this->actingAs($this->admin)->getJson('/api/categories')
             ->assertJsonPath('data.0.courses_count', 2);
     }
 
-    public function test_progress_student_list_is_scoped_to_the_teachers_courses(): void
+    public function test_administrator_progress_list_includes_all_learners(): void
     {
         $this->enroll($this->student, $this->course);
         $this->enroll($this->otherStudent, $this->otherCourse);
 
         $this->actingAs($this->teacher)->getJson('/api/progress/students')
             ->assertStatus(200)
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.email', 'alex@gmail.com');
+            ->assertJsonCount(2, 'data');
 
         $this->actingAs($this->admin)->getJson('/api/progress/students')->assertJsonCount(2, 'data');
         $this->actingAs($this->student)->getJson('/api/progress/students')->assertStatus(403);
     }
 
-    public function test_enrollable_students_only_count_the_teachers_own_enrollments(): void
+    public function test_enrollable_students_count_all_enrollments(): void
     {
         $this->enroll($this->otherStudent, $this->otherCourse);
 
         $students = collect($this->actingAs($this->teacher)->getJson('/api/enrollments/students')->json('data'));
 
-        $this->assertSame(0, $students->firstWhere('email', 'maria@gmail.com')['enrollments_count']);
+        $this->assertSame(1, $students->firstWhere('email', 'maria@gmail.com')['enrollments_count']);
     }
 
     // --- Stored progress stays in step with published lessons ----------------
@@ -238,19 +237,19 @@ class SystemConsistencyTest extends TestCase
     public function test_admin_cannot_change_their_own_role(): void
     {
         $this->actingAs($this->admin)
-            ->putJson("/api/users/{$this->admin->id}", ['role' => 'teacher'])
+            ->putJson("/api/users/{$this->admin->id}", ['role' => 'student'])
             ->assertStatus(422);
 
         $this->assertSame('administrator', $this->admin->fresh()->role);
     }
 
-    public function test_cancelled_student_is_told_to_contact_their_teacher(): void
+    public function test_cancelled_learner_is_told_to_contact_an_administrator(): void
     {
         $this->enroll($this->student, $this->course, 'cancelled');
 
         $this->actingAs($this->student)
             ->postJson('/api/enrollments', ['course_id' => $this->course->id])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Your enrollment in this course was cancelled. Please contact your teacher.');
+            ->assertJsonPath('message', 'Your enrollment in this course was cancelled. Please contact an administrator.');
     }
 }

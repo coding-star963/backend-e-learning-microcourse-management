@@ -24,7 +24,7 @@ class UserController extends Controller
     {
         $query = User::query();
 
-        if ($request->has('role') && in_array($request->role, ['administrator', 'teacher', 'student'])) {
+        if ($request->has('role') && in_array($request->role, ['administrator', 'student'])) {
             $query->where('role', $request->role);
         }
 
@@ -58,7 +58,7 @@ class UserController extends Controller
             // Every account signs in with a Gmail address.
             'email' => ['required', 'email', 'max:255', 'unique:users,email', new GmailAddress],
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:administrator,teacher,student',
+            'role' => 'required|in:administrator,student',
         ]);
 
         $user = User::create([
@@ -94,7 +94,7 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
-        // A deactivated account (e.g. a teacher) must be activated before it can be edited.
+        // A deactivated account must be activated before it can be edited.
         if ($user->isInactive()) {
             return response()->json(['message' => User::FROZEN_MESSAGE], 422);
         }
@@ -109,7 +109,7 @@ class UserController extends Controller
                 'sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id,
                 Rule::when($changesEmail, [new GmailAddress]),
             ],
-            'role' => 'sometimes|in:administrator,teacher,student',
+            'role' => 'sometimes|in:administrator,student',
         ]);
 
         // An administrator demoting themself would lock them out of user management.
@@ -167,8 +167,7 @@ class UserController extends Controller
     /**
      * Suspend an account: it cannot sign in to the web or mobile app until it is reactivated.
      *
-     * Administrators may suspend any other account; teachers only students
-     * enrolled in their own courses.
+     * Administrators may suspend any other account.
      */
     public function suspend(Request $request, User $user): JsonResponse
     {
@@ -221,12 +220,6 @@ class UserController extends Controller
     {
         abort_if($actor->id === $user->id, 422, 'You cannot suspend or reactivate your own account.');
 
-        if ($actor->isTeacher()) {
-            abort_unless(
-                $user->isStudentOf($actor),
-                403,
-                'You can only suspend students enrolled in your own courses.'
-            );
-        }
+        abort_unless($actor->isAdministrator(), 403, 'Only administrators can manage accounts.');
     }
 }

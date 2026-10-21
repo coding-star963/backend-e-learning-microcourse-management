@@ -41,8 +41,7 @@ class Announcement extends Model
     }
 
     /**
-     * Admins see everything. Teachers see their own announcements plus published ones
-     * for all courses or their courses. Students see published ones for all courses
+     * Administrators see everything. Learners see published notices for all courses
      * or courses they are enrolled in.
      */
     public function scopeVisibleTo(Builder $query, User $user): void
@@ -51,19 +50,13 @@ class Announcement extends Model
             return;
         }
 
-        $courseIds = $user->isTeacher()
-            ? Course::where('teacher_id', $user->id)->select('id')
-            : Enrollment::where('user_id', $user->id)->select('course_id');
+        $courseIds = Enrollment::where('user_id', $user->id)->select('course_id');
 
-        $query->where(function ($q) use ($user, $courseIds) {
+        $query->where(function ($q) use ($courseIds) {
             $q->where(function ($published) use ($courseIds) {
                 $published->where('is_published', true)
                     ->where(fn ($scope) => $scope->whereNull('course_id')->orWhereIn('course_id', $courseIds));
             });
-
-            if ($user->isTeacher()) {
-                $q->orWhere('user_id', $user->id);
-            }
         });
     }
 
@@ -89,11 +82,11 @@ class Announcement extends Model
     }
 
     /**
-     * Administrators manage every announcement; teachers manage their own.
+     * Administrators manage every announcement.
      */
     public function isManageableBy(User $user): bool
     {
-        return $user->isAdministrator() || (int) $this->user_id === (int) $user->id;
+        return $user->isAdministrator();
     }
 
     public function publish(): void

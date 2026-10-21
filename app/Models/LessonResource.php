@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +33,6 @@ class LessonResource extends Model
 
     public function getFileUrlAttribute(): ?string
     {
-        return asset('storage/' . $this->file_path);
+        return MediaUrl::publicUrl($this->file_path);
     }
 }

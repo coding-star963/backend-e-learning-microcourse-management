@@ -29,7 +29,7 @@ class UserManagementTest extends TestCase
             'name' => 'Teacher User',
             'email' => 'teacher@school.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'student',
             'is_active' => true,
         ]);
     }
@@ -48,7 +48,7 @@ class UserManagementTest extends TestCase
             ]);
     }
 
-    public function test_teacher_cannot_list_users(): void
+    public function test_learner_cannot_list_users(): void
     {
         $this->actingAs($this->teacher);
 
@@ -104,7 +104,7 @@ class UserManagementTest extends TestCase
         $response = $this->putJson("/api/users/{$this->teacher->id}", [
             'name' => 'Updated Teacher',
             'email' => 'updated.teacher@gmail.com',
-            'role' => 'teacher',
+            'role' => 'administrator',
         ]);
 
         $response->assertStatus(200)

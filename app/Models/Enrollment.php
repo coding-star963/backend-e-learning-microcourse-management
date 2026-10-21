@@ -48,8 +48,7 @@ class Enrollment extends Model
     }
 
     /**
-     * Admins see every enrollment, teachers see enrollments in their own
-     * courses, and students see only their own.
+     * Administrators see every enrollment; learners see only their own.
      */
     public function isVisibleTo(User $user): bool
     {
@@ -57,7 +56,7 @@ class Enrollment extends Model
             return true;
         }
 
-        return $user->isTeacher() && (int) $this->course->teacher_id === (int) $user->id;
+        return false;
     }
 
     public function isActive(): bool
@@ -107,7 +106,7 @@ class Enrollment extends Model
     /**
      * Recompute progress from the course's published lessons, and move the
      * status between active and completed to match. $touch also records the
-     * visit (false for background refreshes, e.g. a teacher publishing a lesson).
+     * visit (false for background refreshes, e.g. an administrator publishing a lesson).
      */
     public function recalculateProgress(bool $touch = true): void
     {

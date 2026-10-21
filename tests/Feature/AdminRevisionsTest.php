@@ -23,7 +23,7 @@ class AdminRevisionsTest extends TestCase
         parent::setUp();
 
         $this->admin = User::create(['name' => 'Admin', 'email' => 'admin@school.com', 'password' => 'password', 'role' => 'administrator', 'is_active' => true]);
-        $this->teacher = User::create(['name' => 'Teacher', 'email' => 'teacher@school.com', 'password' => 'password', 'role' => 'teacher', 'is_active' => true]);
+        $this->teacher = User::create(['name' => 'Teacher', 'email' => 'teacher@school.com', 'password' => 'password', 'role' => 'administrator', 'is_active' => true]);
         $this->student = User::create(['name' => 'Student', 'email' => 'student@school.com', 'password' => 'password', 'role' => 'student', 'is_active' => true]);
         $this->category = Category::create(['name' => 'Web Development', 'description' => 'Web things']);
     }
@@ -51,49 +51,33 @@ class AdminRevisionsTest extends TestCase
         $this->assertNull($course->fresh()->category_id);
     }
 
-    public function test_admin_can_assign_teacher_and_section_when_creating_course(): void
+    public function test_admin_can_create_course_without_school_grouping(): void
     {
-        $this->actingAs($this->admin);
-
-        $response = $this->postJson('/api/courses', [
-            'title' => 'Assigned Course',
-            'difficulty_level' => 'beginner',
-            'teacher_id' => $this->teacher->id,
-            'section' => 'BSIT 2-A',
-        ]);
-
-        $response->assertStatus(201)
-            ->assertJsonPath('course.teacher.id', $this->teacher->id)
-            ->assertJsonPath('course.section', 'BSIT 2-A');
+        $response = $this->actingAs($this->admin)->postJson('/api/courses', [
+            'title' => 'Open Course', 'difficulty_level' => 'beginner',
+        ])->assertCreated();
+        $this->assertArrayNotHasKey('teacher', $response->json('course'));
+        $this->assertArrayNotHasKey('section', $response->json('course'));
     }
 
-    public function test_course_teacher_must_have_teacher_role(): void
+    public function test_learner_cannot_create_courses(): void
     {
-        $this->actingAs($this->admin);
-
-        $this->postJson('/api/courses', [
-            'title' => 'Bad Teacher',
-            'difficulty_level' => 'beginner',
-            'teacher_id' => $this->student->id,
-        ])->assertStatus(422)->assertJsonValidationErrors('teacher_id');
+        $this->actingAs($this->student)->postJson('/api/courses', [
+            'title' => 'Restricted Course', 'difficulty_level' => 'beginner',
+        ])->assertForbidden();
     }
 
-    public function test_admin_can_list_teachers(): void
+    public function test_retired_teacher_directory_is_unavailable(): void
     {
-        $this->makeCourse();
-        $this->actingAs($this->admin);
-
-        $this->getJson('/api/teachers')
-            ->assertStatus(200)
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.courses_count', 1);
+        $this->actingAs($this->admin)->getJson('/api/teachers')->assertNotFound();
     }
 
-    public function test_teacher_cannot_access_teacher_management(): void
+    public function test_retired_teacher_role_is_rejected(): void
     {
-        $this->actingAs($this->teacher);
-
-        $this->getJson('/api/teachers')->assertStatus(403);
+        $this->actingAs($this->admin)->postJson('/api/users', [
+            'name' => 'Retired Role', 'email' => 'retired.role@gmail.com',
+            'password' => 'password123', 'password_confirmation' => 'password123', 'role' => 'teacher',
+        ])->assertUnprocessable()->assertJsonValidationErrors('role');
     }
 
     public function test_admin_can_register_and_enroll_new_student(): void
@@ -124,7 +108,7 @@ class AdminRevisionsTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('user_id');
     }
 
-    public function test_teacher_can_list_enrollable_students(): void
+    public function test_administrator_can_list_enrollable_students(): void
     {
         $this->actingAs($this->teacher);
 

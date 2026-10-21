@@ -35,13 +35,13 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
-    public function test_teacher_can_login(): void
+    public function test_learner_can_login(): void
     {
         $user = User::create([
-            'name' => 'Teacher',
+            'name' => 'Learner',
             'email' => 'teacher@gmail.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'student',
             'email_verified_at' => now(),
         ]);
 
@@ -65,7 +65,7 @@ class AuthenticationTest extends TestCase
             'name' => 'User',
             'email' => 'user@gmail.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
@@ -91,7 +91,7 @@ class AuthenticationTest extends TestCase
             'name' => 'User',
             'email' => 'user@example.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
@@ -129,7 +129,7 @@ class AuthenticationTest extends TestCase
             'name' => 'User',
             'email' => 'user@example.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
@@ -142,7 +142,7 @@ class AuthenticationTest extends TestCase
                 'data' => [
                     'name' => 'User',
                     'email' => 'user@example.com',
-                    'role' => 'teacher',
+                    'role' => 'administrator',
                 ],
             ]);
     }
@@ -153,7 +153,7 @@ class AuthenticationTest extends TestCase
             'name' => 'User',
             'email' => 'user@example.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
@@ -182,7 +182,7 @@ class AuthenticationTest extends TestCase
             'name' => 'User',
             'email' => 'user@example.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
@@ -208,7 +208,7 @@ class AuthenticationTest extends TestCase
             'name' => 'User',
             'email' => 'user@example.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 
@@ -229,7 +229,7 @@ class AuthenticationTest extends TestCase
             'name' => 'Deactivated User',
             'email' => 'inactive@gmail.com',
             'password' => 'password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'is_active' => false,
             'email_verified_at' => now(),
         ]);
@@ -270,7 +270,7 @@ class AuthenticationTest extends TestCase
             'name' => 'Reset User',
             'email' => 'reset2@example.com',
             'password' => 'old-password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
         $user->createToken('old-device');
@@ -326,7 +326,7 @@ class AuthenticationTest extends TestCase
             'name' => 'Reset User',
             'email' => 'reset3@example.com',
             'password' => 'old-password',
-            'role' => 'teacher',
+            'role' => 'administrator',
             'email_verified_at' => now(),
         ]);
 

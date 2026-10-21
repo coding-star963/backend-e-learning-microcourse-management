@@ -18,6 +18,10 @@ class EnsureUserIsActive
     {
         $user = $request->user();
 
+        if ($user && ! in_array($user->role, [User::ROLE_ADMINISTRATOR, User::ROLE_STUDENT], true)) {
+            return response()->json(['message' => 'This account role is no longer supported. Contact an administrator.'], 403);
+        }
+
         if ($user && $user->isInactive()) {
             $user->tokens()->delete();
 

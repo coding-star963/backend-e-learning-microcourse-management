@@ -150,7 +150,7 @@ class AnnouncementController extends Controller
 
     public function notificationHistory(Request $request): AnonymousResourceCollection
     {
-        // Teachers only see general notices and those for their own courses.
+        // Administrators see all published notices.
         $query = Announcement::with(['user', 'course'])
             ->visibleTo($request->user())
             ->where('is_published', true);
@@ -174,18 +174,10 @@ class AnnouncementController extends Controller
     }
 
     /**
-     * Teachers may only target courses they own (null = all courses).
+     * Administrators may target any course (null = all courses).
      */
     private function authorizeCourse(User $user, $courseId): void
     {
-        if ($courseId === null || $user->isAdministrator()) {
-            return;
-        }
-
-        abort_unless(
-            Course::whereKey($courseId)->where('teacher_id', $user->id)->exists(),
-            403,
-            'You can only post announcements to your own courses.'
-        );
+        abort_unless($user->isAdministrator(), 403, 'Only administrators can manage announcements.');
     }
 }

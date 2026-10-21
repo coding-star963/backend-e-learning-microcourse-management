@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Lesson extends Model
 {
@@ -59,6 +62,11 @@ class Lesson extends Model
     public function progress()
     {
         return $this->hasMany(LessonProgress::class);
+    }
+
+    public function quiz(): HasOne
+    {
+        return $this->hasOne(Quiz::class);
     }
 
     public function isPublished(): bool
@@ -120,12 +128,12 @@ class Lesson extends Model
 
     public function getVideoUrlAttribute(): ?string
     {
-        return $this->video_path ? asset('storage/' . $this->video_path) : null;
+        return MediaUrl::publicUrl($this->video_path);
     }
 
     public function getAudioUrlAttribute(): ?string
     {
-        return $this->audio_path ? asset('storage/' . $this->audio_path) : null;
+        return MediaUrl::publicUrl($this->audio_path);
     }
 
     public function getDurationFormattedAttribute(): ?string

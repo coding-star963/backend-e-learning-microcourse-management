@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
+
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,15 +22,16 @@ class User extends Authenticatable
     use HasFactory, HasApiTokens, Notifiable;
 
     const ROLE_ADMINISTRATOR = 'administrator';
-    const ROLE_TEACHER = 'teacher';
     const ROLE_STUDENT = 'student';
+
+    protected $attributes = ['role' => self::ROLE_STUDENT];
 
     // Account status: deactivated (is_active = false) wins over suspended (suspended_at set).
     const ACCOUNT_ACTIVE = 'active';
     const ACCOUNT_SUSPENDED = 'suspended';
     const ACCOUNT_DEACTIVATED = 'deactivated';
 
-    const SUSPENDED_MESSAGE = 'Your account has been suspended. Please contact your teacher or an administrator to have it reactivated.';
+    const SUSPENDED_MESSAGE = 'Your account has been suspended. Please contact an administrator to have it reactivated.';
     const DEACTIVATED_MESSAGE = 'Your account has been deactivated. Please contact an administrator.';
 
     // A deactivated account's records are frozen; suspended accounts can still be changed.
@@ -55,14 +58,6 @@ class User extends Authenticatable
     public function isAdministrator(): bool
     {
         return $this->role === self::ROLE_ADMINISTRATOR;
-    }
-
-    /**
-     * Check if user is a teacher.
-     */
-    public function isTeacher(): bool
-    {
-        return $this->role === self::ROLE_TEACHER;
     }
 
     /**
@@ -134,16 +129,6 @@ class User extends Authenticatable
             ->each(fn (Enrollment $enrollment) => $enrollment->recalculateProgress(false));
     }
 
-    /**
-     * Teachers manage the students enrolled in their own courses.
-     */
-    public function isStudentOf(User $teacher): bool
-    {
-        return $this->isStudent() && $this->enrollments()
-            ->whereIn('course_id', Course::where('teacher_id', $teacher->id)->select('id'))
-            ->exists();
-    }
-
     public function courses(): HasMany
     {
         return $this->hasMany(Course::class, 'teacher_id');
@@ -171,12 +156,6 @@ class User extends Authenticatable
      */
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        if ($this->profile_photo) {
-            if (str_starts_with($this->profile_photo, 'http://') || str_starts_with($this->profile_photo, 'https://')) {
-                return $this->profile_photo;
-            }
-            return asset('storage/' . ltrim($this->profile_photo, '/'));
-        }
-        return null;
+        return MediaUrl::publicUrl($this->profile_photo);
     }
 }

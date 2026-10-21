@@ -30,8 +30,8 @@ class AccessControlTest extends TestCase
         parent::setUp();
 
         $this->admin = $this->makeUser('admin@school.com', 'administrator');
-        $this->teacher = $this->makeUser('teacher@school.com', 'teacher');
-        $this->otherTeacher = $this->makeUser('other.teacher@school.com', 'teacher');
+        $this->teacher = $this->makeUser('teacher@school.com', 'administrator');
+        $this->otherTeacher = $this->makeUser('other.teacher@school.com', 'administrator');
         $this->student = $this->makeUser('student@school.com', 'student');
         $this->otherStudent = $this->makeUser('other.student@school.com', 'student');
 
@@ -113,25 +113,21 @@ class AccessControlTest extends TestCase
 
     // --- Course ownership & visibility ------------------------------------
 
-    public function test_teacher_cannot_manage_another_teachers_course(): void
+    public function test_learner_cannot_manage_course_content(): void
     {
-        $this->actingAs($this->otherTeacher);
-
-        $this->putJson("/api/courses/{$this->course->slug}", ['title' => 'Hijacked'])->assertStatus(403);
-        $this->postJson("/api/courses/{$this->course->slug}/archive")->assertStatus(403);
-        $this->deleteJson("/api/courses/{$this->course->slug}")->assertStatus(403);
-        $this->postJson("/api/courses/{$this->course->slug}/lessons", ['title' => 'X'])->assertStatus(403);
-
+        $this->actingAs($this->student);
+        $this->putJson("/api/courses/{$this->course->slug}", ['title' => 'Hijacked'])->assertForbidden();
+        $this->postJson("/api/courses/{$this->course->slug}/archive")->assertForbidden();
+        $this->deleteJson("/api/courses/{$this->course->slug}")->assertForbidden();
+        $this->postJson("/api/courses/{$this->course->slug}/lessons", ['title' => 'X'])->assertForbidden();
         $this->assertDatabaseHas('courses', ['id' => $this->course->id, 'status' => 'published']);
     }
 
-    public function test_teacher_cannot_view_another_teachers_course_or_lessons(): void
+    public function test_learner_cannot_view_draft_course_or_its_lessons(): void
     {
-        $this->actingAs($this->otherTeacher);
-
-        $this->getJson("/api/courses/{$this->course->slug}")->assertStatus(403);
-        $this->getJson("/api/courses/{$this->course->slug}/lessons")->assertStatus(403);
-        $this->getJson("/api/courses/{$this->course->slug}/lessons/{$this->lesson->id}")->assertStatus(403);
+        $this->actingAs($this->student);
+        $this->getJson("/api/courses/{$this->draftCourse->slug}")->assertForbidden();
+        $this->getJson("/api/courses/{$this->draftCourse->slug}/lessons")->assertForbidden();
     }
 
     public function test_course_lessons_only_include_that_courses_lessons(): void
@@ -158,12 +154,10 @@ class AccessControlTest extends TestCase
             ->assertStatus(200);
     }
 
-    public function test_teacher_course_list_only_shows_own_courses(): void
+    public function test_administrator_course_list_includes_all_creators(): void
     {
-        $this->actingAs($this->teacher)
-            ->getJson('/api/courses')
-            ->assertStatus(200)
-            ->assertJsonCount(2, 'data');
+        $this->actingAs($this->teacher)->getJson('/api/courses')
+            ->assertOk()->assertJsonCount(3, 'data');
     }
 
     public function test_student_only_sees_published_courses(): void
@@ -256,12 +250,11 @@ class AccessControlTest extends TestCase
             ->assertJsonPath('data.0.course.lesson_ids', [$this->lesson->id]);
     }
 
-    public function test_teacher_cannot_enroll_students_in_another_teachers_course(): void
+    public function test_administrator_can_enroll_learners_in_any_course(): void
     {
         $this->actingAs($this->otherTeacher)->postJson('/api/enrollments', [
-            'course_id' => $this->course->id,
-            'user_id' => $this->student->id,
-        ])->assertStatus(403);
+            'user_id' => $this->student->id, 'course_id' => $this->course->id,
+        ])->assertCreated();
     }
 
     // --- Progress ----------------------------------------------------------
@@ -330,18 +323,14 @@ class AccessControlTest extends TestCase
         $this->getJson("/api/announcements/{$other->id}")->assertStatus(404);
     }
 
-    public function test_teacher_cannot_edit_another_teachers_announcement(): void
+    public function test_only_administrators_can_edit_announcements(): void
     {
-        $announcement = Announcement::create(['user_id' => $this->teacher->id, 'title' => 'Mine', 'content' => 'x']);
-
-        $this->actingAs($this->otherTeacher);
-        $this->putJson("/api/announcements/{$announcement->id}", ['title' => 'Changed'])->assertStatus(403);
-        $this->deleteJson("/api/announcements/{$announcement->id}")->assertStatus(403);
-        $this->postJson('/api/announcements', [
-            'title' => 'Wrong course',
-            'content' => 'x',
-            'course_id' => $this->course->id,
-        ])->assertStatus(403);
+        $notice = Announcement::create(['user_id' => $this->otherTeacher->id,
+            'title' => 'Notice', 'content' => 'Original', 'type' => 'general']);
+        $this->actingAs($this->student)->putJson('/api/announcements/'.$notice->id,
+            ['title' => 'Hijacked'])->assertForbidden();
+        $this->actingAs($this->teacher)->putJson('/api/announcements/'.$notice->id,
+            ['title' => 'Updated by administrator'])->assertOk();
     }
 
     // --- Deactivated accounts ----------------------------------------------

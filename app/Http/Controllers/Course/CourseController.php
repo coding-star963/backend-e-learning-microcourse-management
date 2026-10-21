@@ -21,11 +21,23 @@ class CourseController extends Controller
         $user = $request->user();
         $query = Course::with(['teacher', 'category', 'publishedLessons:id,course_id,order,status']);
 
-        // Teachers only see their own courses; students only see published ones.
-        if ($user->isTeacher()) {
-            $query->where('teacher_id', $user->id);
-        } elseif ($user->isStudent()) {
+        // All learners share the published catalog.
+        if ($user->isStudent()) {
             $query->where('status', Course::STATUS_PUBLISHED);
+        }
+
+        // Used by the admin enrollment form. Filter in SQL before pagination,
+        // so a learner's existing records cannot hide later available modules.
+        if ($request->boolean('available_for_enrollment')) {
+            abort_unless($user->isAdministrator(), 403);
+            $validated = $request->validate([
+                'user_id' => ['nullable', 'integer', Rule::exists('users', 'id')
+                    ->where('role', User::ROLE_STUDENT)->where('is_active', true)],
+            ]);
+            $query->where('status', Course::STATUS_PUBLISHED)->where('is_published', true);
+            if (! empty($validated['user_id'])) {
+                $query->whereDoesntHave('enrollments', fn ($q) => $q->where('user_id', $validated['user_id']));
+            }
         }
 
         if ($request->has('status') && in_array($request->status, ['draft', 'published', 'archived'])) {
@@ -59,8 +71,6 @@ class CourseController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'difficulty_level' => 'required|in:beginner,intermediate,advanced',
             'duration' => 'nullable|string|max:50',
-            'teacher_id' => ['nullable', Rule::exists('users', 'id')->where('role', User::ROLE_TEACHER)],
-            'section' => 'nullable|string|max:100',
             'thumbnail' => 'nullable|image|max:10240',
             'status' => 'sometimes|in:draft,published,archived',
         ]);
@@ -69,10 +79,8 @@ class CourseController extends Controller
             $validated['thumbnail'] = $request->file('thumbnail')->store('course-thumbnails', 'public');
         }
 
-        // Administrators assign a teacher; teachers always own the courses they create.
-        if (! $request->user()->isAdministrator() || empty($validated['teacher_id'])) {
-            $validated['teacher_id'] = $request->user()->id;
-        }
+        // Retain the legacy ownership column as the administrator who created the course.
+        $validated['teacher_id'] = $request->user()->id;
         $validated['is_published'] = ($validated['status'] ?? 'draft') === 'published';
 
         $course = Course::create($validated);
@@ -103,15 +111,9 @@ class CourseController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'difficulty_level' => 'sometimes|in:beginner,intermediate,advanced',
             'duration' => 'nullable|string|max:50',
-            'teacher_id' => ['nullable', Rule::exists('users', 'id')->where('role', User::ROLE_TEACHER)],
-            'section' => 'nullable|string|max:100',
             'thumbnail' => 'nullable|image|max:10240',
             'status' => 'sometimes|in:draft,published,archived',
         ]);
-
-        if (! $request->user()->isAdministrator() || empty($validated['teacher_id'])) {
-            unset($validated['teacher_id']);
-        }
 
         if ($request->hasFile('thumbnail')) {
             if ($course->thumbnail) {
@@ -223,6 +225,6 @@ class CourseController extends Controller
 
     private function authorizeManage(Request $request, Course $course): void
     {
-        abort_unless($course->isManageableBy($request->user()), 403, 'You can only manage your own courses.');
+        abort_unless($course->isManageableBy($request->user()), 403, 'Only administrators can manage courses.');
     }
 }
