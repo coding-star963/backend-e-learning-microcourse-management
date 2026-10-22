@@ -39,7 +39,8 @@ class DatabaseSeeder extends Seeder
             $categories[] = Category::create($cat);
         }
 
-        // Create courses with lessons (5 courses, 3-5 lessons per course)
+        // Create courses with lessons (5 courses, 3-5 lessons per course).
+        // Course durations are digits only, expressed in minutes.
         $courseData = [
             [
                 'teacher_id' => $admin->id,
@@ -50,7 +51,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'beginner',
-                'duration' => '1 hour',
+                'duration' => '60',
                 'lessons' => [
                     ['title' => 'Introduction to HTML', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 600, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Working with Text & Links', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 2],
@@ -67,7 +68,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'intermediate',
-                'duration' => '1 hour 30 minutes',
+                'duration' => '90',
                 'lessons' => [
                     ['title' => 'Variables & Data Types', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Operators & Conditions', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 2],
@@ -85,7 +86,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'beginner',
-                'duration' => '45 minutes',
+                'duration' => '45',
                 'lessons' => [
                     ['title' => 'Conditions & Loops', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Functions & Problem Solving', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 900, 'order' => 2],
@@ -101,7 +102,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'published',
                 'is_published' => true,
                 'difficulty_level' => 'intermediate',
-                'duration' => '1 hour 15 minutes',
+                'duration' => '75',
                 'lessons' => [
                     ['title' => 'Flutter Widgets', 'status' => 'published', 'availability' => 'free', 'duration_seconds' => 900, 'order' => 1, 'is_free_preview' => true],
                     ['title' => 'Layouts & Navigation', 'status' => 'published', 'availability' => 'locked', 'duration_seconds' => 1100, 'order' => 2],
@@ -118,7 +119,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'draft',
                 'is_published' => false,
                 'difficulty_level' => 'beginner',
-                'duration' => '45 minutes',
+                'duration' => '45',
                 'lessons' => [
                     ['title' => 'Design Fundamentals', 'status' => 'draft', 'availability' => 'free', 'duration_seconds' => 800, 'order' => 1],
                     ['title' => 'Color & Typography', 'status' => 'draft', 'availability' => 'free', 'duration_seconds' => 700, 'order' => 2],

@@ -21,6 +21,7 @@ class StudentNotice extends Notification
         public ?Course $course = null,
         public ?User $actor = null,
         public ?int $enrollmentId = null,
+        public ?string $reason = null,
     ) {}
 
     /**
@@ -61,6 +62,8 @@ class StudentNotice extends Notification
             'course_title' => $this->course?->title,
             'enrollment_id' => $this->enrollmentId,
             'actor_name' => $this->actor?->name,
+            'actor_id' => $this->actor?->id,
+            'reason' => $this->reason,
         ];
     }
 }

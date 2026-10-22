@@ -278,7 +278,7 @@ class AccountStatusAndSyncTest extends TestCase
         }
         // Re-sending the same status is not a change, so no extra notice.
         $this->putJson("/api/enrollments/{$enrollmentId}", ['status' => 'completed'])->assertOk();
-        $this->deleteJson("/api/enrollments/{$enrollmentId}")->assertOk();
+        $this->deleteJson("/api/enrollments/{$enrollmentId}", ['reason' => 'Duplicate enrollment record.'])->assertOk();
 
         $this->assertEqualsCanonicalizing(
             ['enrolled', 'suspended', 'reactivated', 'cancelled', 'reactivated', 'completed', 'deleted'],
@@ -304,13 +304,34 @@ class AccountStatusAndSyncTest extends TestCase
             'completed_at' => now(),
         ]);
 
-        $this->actingAs($this->teacher)->deleteJson("/api/enrollments/{$enrollment->id}")->assertOk();
+        $this->actingAs($this->teacher)->deleteJson("/api/enrollments/{$enrollment->id}", ['reason' => 'Student requested a fresh start.'])->assertOk();
         $this->assertDatabaseMissing('lesson_progress', ['enrollment_id' => $enrollment->id]);
 
         $this->actingAs($this->student);
         $this->getJson("/api/enrollments/student/{$this->student->id}")->assertJsonCount(0, 'data');
         $this->getJson("/api/enrollments/{$enrollment->id}")->assertNotFound();
         $this->postJson('/api/enrollments', ['course_id' => $this->course->id])->assertCreated();
+    }
+
+    public function test_deletion_requires_a_reason_and_records_the_authorized_actor(): void
+    {
+        $enrollment = $this->enroll($this->student);
+        $url = "/api/enrollments/{$enrollment->id}";
+
+        $this->actingAs($this->student)->deleteJson($url, ['reason' => 'Remove it.'])->assertForbidden();
+        $this->actingAs($this->admin);
+        foreach ([[], ['reason' => '   '], ['reason' => 123], ['reason' => str_repeat('a', 1001)]] as $payload) {
+            $this->deleteJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('reason');
+            $this->assertDatabaseHas('enrollments', ['id' => $enrollment->id]);
+        }
+        $this->assertCount(0, $this->student->notifications);
+
+        $this->deleteJson($url, ['reason' => '  Duplicate enrollment.  '])->assertOk();
+        $this->assertDatabaseMissing('enrollments', ['id' => $enrollment->id]);
+        $notice = $this->student->fresh()->notifications->first()->data;
+        $this->assertSame('Duplicate enrollment.', $notice['reason']);
+        $this->assertSame($this->admin->id, $notice['actor_id']);
+        $this->assertStringContainsString('Duplicate enrollment.', $notice['content']);
     }
 
     public function test_a_cancelled_enrollment_blocks_progress_media_and_self_re_enrolling(): void

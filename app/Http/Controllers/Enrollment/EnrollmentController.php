@@ -210,12 +210,20 @@ class EnrollmentController extends Controller
         abort_unless($enrollment->isVisibleTo($request->user()), 403, 'You can only manage enrollments in your own courses.');
         abort_if($enrollment->user->isInactive(), 422, User::FROZEN_MESSAGE);
 
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000', 'regex:/\S/u'],
+        ]);
+
         // The enrollment's lesson progress is removed with it (cascade), so the
         // student can enroll again from scratch.
         $notice = StudentNotice::forEnrollment('deleted', $enrollment, $request->user());
+        $notice->reason = trim($validated['reason']);
+        $notice->content .= " Reason: {$notice->reason}";
         $student = $enrollment->user;
-        $enrollment->delete();
-        $student->notify($notice);
+        DB::transaction(function () use ($enrollment, $student, $notice) {
+            $enrollment->delete();
+            $student->notify($notice);
+        });
 
         return response()->json([
             'message' => 'Enrollment record deleted successfully.',
