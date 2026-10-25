@@ -13,7 +13,6 @@ return new class extends Migration
         DB::table('users')->whereIn('id', $retiredIds)->update(['role' => 'student', 'updated_at' => now()]);
 
         // Keep course ownership/history intact; it no longer grants management access.
-        // The old section column is retained only as historical data.
         if (DB::getDriverName() === 'mysql') {
             DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('administrator', 'student') NOT NULL DEFAULT 'student'");
         }

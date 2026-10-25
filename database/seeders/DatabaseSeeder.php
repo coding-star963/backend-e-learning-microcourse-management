@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Admin User',
             'email' => 'admin.microlearn@gmail.com',
             'password' => 'password',
-            'role' => 'administrator',
+            'role' => User::ROLE_ADMINISTRATOR,
             'email_verified_at' => now(),
         ]);
 
@@ -39,7 +39,8 @@ class DatabaseSeeder extends Seeder
             $categories[] = Category::create($cat);
         }
 
-        // Create courses with lessons (5 courses, 3-5 lessons per course).
+        // Create general-audience courses with lessons (5 courses, 3-5 lessons per course).
+        // The administrator is the creator; enrollment is open to all learners.
         // Course durations are digits only, expressed in minutes.
         $courseData = [
             [
@@ -142,11 +143,11 @@ class DatabaseSeeder extends Seeder
             }
         }
 
-        // Create students (every seeded student is enrolled in at least one course).
-        // Student accounts must use Gmail addresses, matching the registration rule.
+        // Create learners from the community, each enrolled in at least one course.
+        // Learner accounts use the student role and Gmail registration rule.
         $students = [];
         $studentData = [
-            ['name' => 'Alex Student', 'email' => 'alex.student@gmail.com', 'password' => 'password'],
+            ['name' => 'Alex Rivera', 'email' => 'alex.student@gmail.com', 'password' => 'password'],
             ['name' => 'James Wilson', 'email' => 'james.wilson@gmail.com', 'password' => 'password'],
             ['name' => 'Maria Garcia', 'email' => 'maria.garcia@gmail.com', 'password' => 'password'],
             ['name' => 'David Kim', 'email' => 'david.kim@gmail.com', 'password' => 'password'],
@@ -159,7 +160,7 @@ class DatabaseSeeder extends Seeder
 
         foreach ($studentData as $sData) {
             $students[] = User::create(array_merge($sData, [
-                'role' => 'student',
+                'role' => User::ROLE_STUDENT,
                 'email_verified_at' => now(),
             ]));
         }
@@ -237,7 +238,7 @@ class DatabaseSeeder extends Seeder
                 'user_id' => $admin->id,
                 'course_id' => null,
                 'title' => 'Welcome to the Learning Platform',
-                'content' => 'We are excited to announce the launch of our new e-learning platform. Browse our courses and start learning today!',
+                'content' => 'Everyone is welcome, including out-of-school youth and community learners. Explore practical micro-courses, enroll, and learn at your own pace.',
                 'type' => 'general',
                 'is_published' => true,
                 'days_ago' => 10,
